@@ -19,7 +19,22 @@ export type RootStackParamList = {
   CustomerLogin: undefined;
   LoggedIn: { role: "vendor" | "customer"; name: string };
   SearchHistory: undefined;
-  Results: { audience?: string; subgroup?: string; category?: string; subcategory?: string; subsubcategory?: string; keyword?: string };
+  Results: {
+    audience?: string;
+    subgroup?: string;
+    category?: string;
+    subcategory?: string;
+    subsubcategory?: string;
+    keyword?: string;
+    searchType?: "all" | "product" | "service" | "vendor";
+    state?: string;
+    lga?: string;
+    verifiedOnly?: boolean;
+    distanceEnabled?: boolean;
+    userLat?: number;
+    userLng?: number;
+    radius?: number;
+  };
   VendorProfile: { slug: string };
 };
 

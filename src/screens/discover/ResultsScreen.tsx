@@ -1,24 +1,24 @@
 // ===============================================================
 // src/screens/discover/ResultsScreen.tsx
 //
-// Phase 1, search logic 100% complete per Cyril's "finish it fully"
-// instruction: now includes state/LGA location filtering and a
-// verified-only toggle, on top of keyword + category/audience/
-// subgroup/subcategory/subsubcategory from the earlier slice.
-// Same RPC functions, same parameters as web -- just actually
-// wiring the state/lga/verified_only ones through now, which were
-// previously always sent as null.
+// Simplified per Cyril's UX correction: this screen no longer owns
+// any filter configuration (state/LGA/verified/distance/type) --
+// all of that now happens on Home before arriving here. This screen
+// just displays whatever was configured. The keyword box stays,
+// for quick refinement without going back to Home, but it re-runs
+// using the SAME type/state/lga/verified/distance it arrived with.
 // ===============================================================
 
 import { useEffect, useState } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, Switch, Modal } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput } from "react-native";
+import { FontAwesome6 } from "@expo/vector-icons";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import { logSearch } from "../../lib/logSearch";
-import { nigeriaData } from "../../lib/nigeria-data";
+import { applyDistance, formatDistance } from "../../lib/distance";
 import { colors } from "../../theme/colors";
 
 type Route = RouteProp<RootStackParamList, "Results">;
@@ -31,27 +31,79 @@ type ResultItem = {
   vendorSlug: string;
   price: number | null;
   kind: "product" | "service" | "vendor";
+  lat: number | null;
+  lng: number | null;
+  distanceKm?: number | null;
+  sponsored: boolean;
+  branchName?: string | null;
+  branchAddress?: string | null;
 };
-
-const STATES = Object.keys(nigeriaData);
 
 export default function ResultsScreen() {
   const route = useRoute<Route>();
   const navigation = useNavigation<Nav>();
-  const { audience, subgroup, category, subcategory, subsubcategory, keyword: initialKeyword } = route.params || {};
+  const {
+    audience, subgroup, category, subcategory, subsubcategory,
+    keyword: initialKeyword, searchType = "all",
+    state, lga, verifiedOnly, distanceEnabled, userLat, userLng, radius = 5,
+  } = route.params || {};
 
   const [keyword, setKeyword] = useState(initialKeyword || "");
   const [loading, setLoading] = useState(true);
-  const [results, setResults] = useState<ResultItem[]>([]);
+  const [products, setProducts] = useState<ResultItem[]>([]);
+  const [services, setServices] = useState<ResultItem[]>([]);
+  const [vendors, setVendors] = useState<ResultItem[]>([]);
 
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [state, setState] = useState<string | null>(null);
-  const [lga, setLga] = useState<string | null>(null);
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
-  const [statePickerOpen, setStatePickerOpen] = useState(false);
-  const [lgaPickerOpen, setLgaPickerOpen] = useState(false);
+  async function fetchBranchResults(kw: string | undefined): Promise<ResultItem[]> {
+    let branchQuery = supabase
+      .from("branches")
+      .select("id, branch_name, address, state, lga, latitude, longitude, vendor_id, account_status")
+      .eq("account_status", "active");
+    if (state) branchQuery = branchQuery.eq("state", state);
+    if (lga) branchQuery = branchQuery.eq("lga", lga);
+    const { data: branchData } = await branchQuery;
+    if (!branchData || branchData.length === 0) return [];
 
-  const lgaOptions = state ? nigeriaData[state] : [];
+    const vendorIds = [...new Set(branchData.map((b: any) => b.vendor_id))];
+    const { data: branchVendors } = await supabase
+      .from("vendors")
+      .select("id, slug, name, category, subcategory, verification_status, is_sponsored, account_status")
+      .in("id", vendorIds)
+      .eq("account_status", "active");
+
+    const vendorMap = new Map((branchVendors || []).map((v: any) => [v.id, v]));
+
+    let items: any[] = branchData
+      .map((b: any) => {
+        const v = vendorMap.get(b.vendor_id);
+        if (!v) return null;
+        return {
+          key: `branch-${b.id}`,
+          name: b.branch_name || v.name,
+          vendorName: v.name,
+          vendorSlug: v.slug,
+          price: null,
+          kind: "vendor" as const,
+          lat: b.latitude ? Number(b.latitude) : null,
+          lng: b.longitude ? Number(b.longitude) : null,
+          sponsored: !!v.is_sponsored,
+          branchName: b.branch_name,
+          branchAddress: b.address,
+          _category: v.category,
+          _verification: v.verification_status,
+        };
+      })
+      .filter(Boolean);
+
+    if (kw) {
+      const kwLower = kw.toLowerCase();
+      items = items.filter((i) => (i.name || "").toLowerCase().includes(kwLower) || (i._category || "").toLowerCase().includes(kwLower));
+    }
+    if (category) items = items.filter((i) => i._category === category);
+    if (verifiedOnly) items = items.filter((i) => i._verification === "blue" || i._verification === "gray");
+
+    return items;
+  }
 
   async function runSearch(kw?: string) {
     setLoading(true);
@@ -62,56 +114,50 @@ export default function ResultsScreen() {
       p_subcategory: subcategory || null,
       p_state: state || null,
       p_lga: lga || null,
-      p_verified_only: verifiedOnly,
+      p_verified_only: !!verifiedOnly,
       p_subsubcategory: subsubcategory || null,
       p_audience_type: audience || null,
       p_goods_subgroup: subgroup || null,
     };
 
-    const [productsRes, servicesRes, vendorsRes] = await Promise.all([
-      supabase.rpc("search_products", params),
-      supabase.rpc("search_services", params),
-      supabase.rpc("search_vendors", params),
+    const [productsRes, servicesRes, vendorsRes, branchItems] = await Promise.all([
+      searchType === "all" || searchType === "product" ? supabase.rpc("search_products", params) : Promise.resolve({ data: [] }),
+      searchType === "all" || searchType === "service" ? supabase.rpc("search_services", params) : Promise.resolve({ data: [] }),
+      searchType === "all" || searchType === "vendor" ? supabase.rpc("search_vendors", params) : Promise.resolve({ data: [] }),
+      searchType === "all" || searchType === "vendor" ? fetchBranchResults(kw) : Promise.resolve([]),
     ]);
 
-    const items: ResultItem[] = [
-      ...(productsRes.data || []).map((p: any) => ({
-        key: `product-${p.id}`,
-        name: p.product_name,
-        vendorName: p.vendor_name,
-        vendorSlug: p.vendor_slug,
-        price: p.price,
-        kind: "product" as const,
-      })),
-      ...(servicesRes.data || []).map((s: any) => ({
-        key: `service-${s.id}`,
-        name: s.service_name,
-        vendorName: s.vendor_name,
-        vendorSlug: s.vendor_slug,
-        price: s.starting_price,
-        kind: "service" as const,
-      })),
+    let productItems: ResultItem[] = (productsRes.data || []).map((p: any) => ({
+      key: `product-${p.id}`, name: p.product_name, vendorName: p.vendor_name, vendorSlug: p.vendor_slug,
+      price: p.price, kind: "product" as const, lat: p.vendor_latitude ?? null, lng: p.vendor_longitude ?? null,
+      sponsored: !!p.vendor_is_sponsored,
+    }));
+    let serviceItems: ResultItem[] = (servicesRes.data || []).map((s: any) => ({
+      key: `service-${s.id}`, name: s.service_name, vendorName: s.vendor_name, vendorSlug: s.vendor_slug,
+      price: s.starting_price, kind: "service" as const, lat: s.vendor_latitude ?? null, lng: s.vendor_longitude ?? null,
+      sponsored: !!s.vendor_is_sponsored,
+    }));
+    let vendorItems: ResultItem[] = [
       ...(vendorsRes.data || []).map((v: any) => ({
-        key: `vendor-${v.id}`,
-        name: v.name,
-        vendorName: v.name,
-        vendorSlug: v.slug,
-        price: null,
-        kind: "vendor" as const,
+        key: `vendor-${v.id}`, name: v.name, vendorName: v.name, vendorSlug: v.slug,
+        price: null, kind: "vendor" as const, lat: v.latitude ?? null, lng: v.longitude ?? null,
+        sponsored: !!v.is_sponsored,
       })),
+      ...branchItems,
     ];
 
-    setResults(items);
+    const lat = userLat ?? null;
+    const lng = userLng ?? null;
+    productItems = applyDistance(productItems, (i) => i.lat, (i) => i.lng, lat, lng, radius, !!distanceEnabled);
+    serviceItems = applyDistance(serviceItems, (i) => i.lat, (i) => i.lng, lat, lng, radius, !!distanceEnabled);
+    vendorItems = applyDistance(vendorItems, (i) => i.lat, (i) => i.lng, lat, lng, radius, !!distanceEnabled);
+
+    setProducts(productItems);
+    setServices(serviceItems);
+    setVendors(vendorItems);
     setLoading(false);
 
-    logSearch({
-      keyword: kw,
-      category,
-      subcategory,
-      state: state || undefined,
-      lga: lga || undefined,
-      verifiedOnly,
-    });
+    logSearch({ keyword: kw, searchType, category, subcategory, state: state || undefined, lga: lga || undefined, verifiedOnly: !!verifiedOnly });
   }
 
   useEffect(() => {
@@ -119,18 +165,30 @@ export default function ResultsScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function applyFilters() {
-    setFiltersOpen(false);
-    runSearch(keyword);
-  }
+  const sponsoredItems = [...products, ...services, ...vendors].filter((i) => i.sponsored);
+  const showProducts = searchType === "all" || searchType === "product";
+  const showServices = searchType === "all" || searchType === "service";
+  const showVendors = searchType === "all" || searchType === "vendor";
+  const totalCount = products.length + services.length + vendors.length;
+  const activeFilterCount = [state, lga, verifiedOnly || null, distanceEnabled || null].filter(Boolean).length;
 
-  function clearFilters() {
-    setState(null);
-    setLga(null);
-    setVerifiedOnly(false);
+  function renderItem(item: ResultItem) {
+    return (
+      <TouchableOpacity key={item.key} style={styles.card} onPress={() => navigation.navigate("VendorProfile", { slug: item.vendorSlug })}>
+        {item.sponsored && <Text style={styles.sponsoredTag}>SPONSORED</Text>}
+        <Text style={styles.itemName}>{item.branchName || item.name}</Text>
+        {item.kind !== "vendor" && <Text style={styles.itemVendor}>By {item.vendorName}</Text>}
+        {item.branchAddress && <Text style={styles.itemVendor}>{item.branchAddress}</Text>}
+        {item.price != null && <Text style={styles.itemPrice}>₦{Number(item.price).toLocaleString()}</Text>}
+        {distanceEnabled && item.distanceKm != null && (
+          <View style={styles.distanceRow}>
+            <FontAwesome6 name="location-dot" size={11} color={colors.primary} />
+            <Text style={styles.itemDistance}>{formatDistance(item.distanceKm)}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
   }
-
-  const activeFilterCount = [state, lga, verifiedOnly || null].filter(Boolean).length;
 
   return (
     <View style={styles.container}>
@@ -140,16 +198,15 @@ export default function ResultsScreen() {
         </TouchableOpacity>
         <Text style={styles.title}>
           {audience ? audience : category ? category : "Search Results"}
-          {subgroup ? ` › ${subgroup}` : ""}
-          {subcategory ? ` › ${subcategory}` : ""}
-          {subsubcategory ? ` › ${subsubcategory}` : ""}
+          {subgroup ? ` › ${subgroup}` : ""}{subcategory ? ` › ${subcategory}` : ""}{subsubcategory ? ` › ${subsubcategory}` : ""}
         </Text>
+        {activeFilterCount > 0 && <Text style={styles.filterBadge}>Filters ({activeFilterCount}) active from Home</Text>}
       </View>
 
       <View style={styles.searchBar}>
         <TextInput
           style={styles.searchInput}
-          placeholder="What are you looking for?"
+          placeholder="Refine keyword…"
           placeholderTextColor={colors.textSecondary}
           value={keyword}
           onChangeText={setKeyword}
@@ -161,131 +218,25 @@ export default function ResultsScreen() {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.filterToggle} onPress={() => setFiltersOpen(true)}>
-        <Text style={styles.filterToggleText}>
-          🔧 Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
-        </Text>
-      </TouchableOpacity>
-
       {loading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
-      ) : results.length === 0 ? (
-        <Text style={styles.empty}>No results found. Try a different search or filters.</Text>
+      ) : totalCount === 0 ? (
+        <Text style={styles.empty}>No results found. Try adjusting your search on Home.</Text>
       ) : (
         <FlatList
-          data={results}
-          keyExtractor={(item) => item.key}
+          data={[{ key: "content" }]}
+          keyExtractor={(i) => i.key}
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() => navigation.navigate("VendorProfile", { slug: item.vendorSlug })}
-            >
-              <Text style={styles.itemName}>{item.name}</Text>
-              {item.kind !== "vendor" && <Text style={styles.itemVendor}>By {item.vendorName}</Text>}
-              {item.price != null && (
-                <Text style={styles.itemPrice}>₦{Number(item.price).toLocaleString()}</Text>
-              )}
-            </TouchableOpacity>
+          renderItem={() => (
+            <View>
+              {sponsoredItems.length > 0 && (<><Text style={styles.sectionHeading}>Sponsored</Text>{sponsoredItems.map(renderItem)}</>)}
+              {showProducts && products.length > 0 && (<><Text style={styles.sectionHeading}>Products</Text>{products.map(renderItem)}</>)}
+              {showServices && services.length > 0 && (<><Text style={styles.sectionHeading}>Services</Text>{services.map(renderItem)}</>)}
+              {showVendors && vendors.length > 0 && (<><Text style={styles.sectionHeading}>Vendors</Text>{vendors.map(renderItem)}</>)}
+            </View>
           )}
         />
       )}
-
-      {/* FILTERS MODAL */}
-      <Modal visible={filtersOpen} animationType="slide" transparent onRequestClose={() => setFiltersOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Filters</Text>
-
-            <Text style={styles.filterLabel}>State</Text>
-            <TouchableOpacity style={styles.filterField} onPress={() => setStatePickerOpen(true)}>
-              <Text style={styles.filterFieldText}>{state || "Any state"}</Text>
-            </TouchableOpacity>
-
-            {state && (
-              <>
-                <Text style={styles.filterLabel}>LGA</Text>
-                <TouchableOpacity style={styles.filterField} onPress={() => setLgaPickerOpen(true)}>
-                  <Text style={styles.filterFieldText}>{lga || "Any LGA"}</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            <View style={styles.switchRow}>
-              <Text style={styles.filterLabel}>Verified vendors only</Text>
-              <Switch
-                value={verifiedOnly}
-                onValueChange={setVerifiedOnly}
-                trackColor={{ true: colors.primary, false: colors.border }}
-              />
-            </View>
-
-            <View style={styles.modalButtonRow}>
-              <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
-                <Text style={styles.clearButtonText}>Clear</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.applyButton} onPress={applyFilters}>
-                <Text style={styles.applyButtonText}>Apply Filters</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* STATE PICKER */}
-      <Modal visible={statePickerOpen} animationType="slide" transparent onRequestClose={() => setStatePickerOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.pickerCard}>
-            <Text style={styles.modalTitle}>Select State</Text>
-            <FlatList
-              data={STATES}
-              keyExtractor={(s) => s}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.pickerItem}
-                  onPress={() => {
-                    setState(item);
-                    setLga(null);
-                    setStatePickerOpen(false);
-                  }}
-                >
-                  <Text style={styles.pickerItemText}>{item}</Text>
-                </TouchableOpacity>
-              )}
-            />
-            <TouchableOpacity style={styles.closeButton} onPress={() => setStatePickerOpen(false)}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* LGA PICKER */}
-      <Modal visible={lgaPickerOpen} animationType="slide" transparent onRequestClose={() => setLgaPickerOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.pickerCard}>
-            <Text style={styles.modalTitle}>Select LGA</Text>
-            <FlatList
-              data={lgaOptions}
-              keyExtractor={(l) => l}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.pickerItem}
-                  onPress={() => {
-                    setLga(item);
-                    setLgaPickerOpen(false);
-                  }}
-                >
-                  <Text style={styles.pickerItemText}>{item}</Text>
-                </TouchableOpacity>
-              )}
-            />
-            <TouchableOpacity style={styles.closeButton} onPress={() => setLgaPickerOpen(false)}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -295,64 +246,18 @@ const styles = StyleSheet.create({
   header: { padding: 16, paddingTop: 50 },
   back: { color: colors.primary, fontSize: 15, marginBottom: 8 },
   title: { color: colors.white, fontSize: 20, fontWeight: "700" },
-  searchBar: { flexDirection: "row", paddingHorizontal: 16, marginBottom: 8, gap: 8 },
-  searchInput: {
-    flex: 1,
-    backgroundColor: "#141414",
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: 10,
-    color: colors.white,
-  },
+  filterBadge: { color: colors.primary, fontSize: 11, marginTop: 6 },
+  searchBar: { flexDirection: "row", paddingHorizontal: 16, marginBottom: 12, gap: 8 },
+  searchInput: { flex: 1, backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 10, color: colors.white },
   searchButton: { backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 16, justifyContent: "center" },
   searchButtonText: { color: colors.black, fontWeight: "700" },
-  filterToggle: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: 10,
-    alignSelf: "flex-start",
-    paddingHorizontal: 16,
-  },
-  filterToggleText: { color: colors.primary, fontSize: 13, fontWeight: "600" },
   empty: { color: colors.textSecondary, textAlign: "center", marginTop: 40 },
-  card: {
-    backgroundColor: "#141414",
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 10,
-  },
+  sectionHeading: { color: colors.white, fontSize: 15, fontWeight: "700", marginTop: 16, marginBottom: 8 },
+  sponsoredTag: { color: colors.primary, fontSize: 10, fontWeight: "700", marginBottom: 4 },
+  card: { backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 14, marginBottom: 10 },
   itemName: { color: colors.white, fontSize: 15, fontWeight: "600" },
   itemVendor: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
   itemPrice: { color: colors.primary, fontSize: 13, marginTop: 4, fontWeight: "600" },
-
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: colors.dark, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 40 },
-  modalTitle: { color: colors.white, fontSize: 18, fontWeight: "700", marginBottom: 16 },
-  filterLabel: { color: colors.textSecondary, fontSize: 13, marginBottom: 6, marginTop: 12 },
-  filterField: {
-    backgroundColor: "#141414",
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    padding: 12,
-  },
-  filterFieldText: { color: colors.white, fontSize: 14 },
-  switchRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 20 },
-  modalButtonRow: { flexDirection: "row", gap: 10, marginTop: 28 },
-  clearButton: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 14, alignItems: "center" },
-  clearButtonText: { color: colors.textSecondary, fontWeight: "600" },
-  applyButton: { flex: 2, backgroundColor: colors.primary, borderRadius: 8, padding: 14, alignItems: "center" },
-  applyButtonText: { color: colors.black, fontWeight: "700" },
-
-  pickerCard: { backgroundColor: colors.dark, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, maxHeight: "75%" },
-  pickerItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  pickerItemText: { color: colors.white, fontSize: 15 },
-  closeButton: { marginTop: 16, padding: 14, alignItems: "center", borderWidth: 1, borderColor: colors.border, borderRadius: 8 },
-  closeButtonText: { color: colors.primary, fontWeight: "600" },
+  itemDistance: { color: colors.primary, fontSize: 11, fontWeight: "700", marginLeft: 4 },
+  distanceRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
 });
