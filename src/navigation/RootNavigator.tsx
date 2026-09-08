@@ -7,18 +7,25 @@ import HomeScreen from "../screens/HomeScreen";
 import AccountTypeScreen from "../screens/auth/AccountTypeScreen";
 import VendorLoginScreen from "../screens/auth/VendorLoginScreen";
 import CustomerLoginScreen from "../screens/auth/CustomerLoginScreen";
+import CustomerSignupScreen from "../screens/auth/CustomerSignupScreen";
 import LoggedInScreen from "../screens/auth/LoggedInScreen";
 import SearchHistoryScreen from "../screens/customer/SearchHistoryScreen";
+import FavoritesScreen from "../screens/customer/FavoritesScreen";
+import MyReviewsScreen from "../screens/customer/MyReviewsScreen";
 import ResultsScreen from "../screens/discover/ResultsScreen";
 import VendorProfileScreen from "../screens/discover/VendorProfileScreen";
+import ProductDetailScreen from "../screens/discover/ProductDetailScreen";
 
 export type RootStackParamList = {
   Home: undefined;
   AccountType: undefined;
   VendorLogin: undefined;
   CustomerLogin: undefined;
+  CustomerSignup: undefined;
   LoggedIn: { role: "vendor" | "customer"; name: string };
   SearchHistory: undefined;
+  Favorites: undefined;
+  MyReviews: undefined;
   Results: {
     audience?: string;
     subgroup?: string;
@@ -36,6 +43,7 @@ export type RootStackParamList = {
     radius?: number;
   };
   VendorProfile: { slug: string };
+  ProductDetail: { vendorSlug: string; productSlug: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -47,10 +55,14 @@ export default function RootNavigator() {
       <Stack.Screen name="AccountType" component={AccountTypeScreen} />
       <Stack.Screen name="VendorLogin" component={VendorLoginScreen} />
       <Stack.Screen name="CustomerLogin" component={CustomerLoginScreen} />
+      <Stack.Screen name="CustomerSignup" component={CustomerSignupScreen} />
       <Stack.Screen name="LoggedIn" component={LoggedInScreen} />
       <Stack.Screen name="SearchHistory" component={SearchHistoryScreen} />
+      <Stack.Screen name="Favorites" component={FavoritesScreen} />
+      <Stack.Screen name="MyReviews" component={MyReviewsScreen} />
       <Stack.Screen name="Results" component={ResultsScreen} />
       <Stack.Screen name="VendorProfile" component={VendorProfileScreen} />
+      <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
     </Stack.Navigator>
   );
 }

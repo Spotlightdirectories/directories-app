@@ -1,25 +1,23 @@
 // ===============================================================
 // src/screens/discover/VendorProfileScreen.tsx
 //
-// Slice 2 added, per Cyril's sequenced plan: About section and
-// Products & Services grid, inserted in the same order as web
-// (Hero -> About -> Products & Services -> Reviews). Slice 3
-// (Portfolio, Similar Businesses, Branches, Video) comes next.
+// Slice 3 added, per Cyril's sequenced plan: Portfolio, Similar
+// Businesses, and Branches. Video is the one piece NOT included
+// here -- React Native has no built-in video player; it needs the
+// expo-av (or expo-video) package, which isn't installed yet.
+// Flagged honestly rather than silently skipped -- see the note
+// after this build.
 //
-// Product/Service tapping doesn't navigate to a detail page yet --
-// that's its own separate pending item ("Product/Service detail
-// pages"), not silently built here. Tapping currently does nothing,
-// same honest gap as Results screen's product/service cards.
-//
-// Description is stored as HTML (rich text editor on web) -- React
-// Native's Text can't render HTML without an extra package, so tags
-// are stripped to plain text here rather than adding a new
-// dependency for read-only display.
+// Portfolio: Service/Hybrid vendors only, matching web exactly.
+// Verified client recommendations (via a SECURITY DEFINER RPC, same
+// as web -- never queries the underlying request table directly,
+// since that also holds the client's email).
 // ===============================================================
 
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Image, Linking, Modal, TextInput } from "react-native";
 import { FontAwesome6 } from "@expo/vector-icons";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
@@ -28,6 +26,35 @@ import { colors } from "../../theme/colors";
 
 type Route = RouteProp<RootStackParamList, "VendorProfile">;
 
+const BRANCH_LIMITS: Record<string, number> = {
+  free: 0, standard: 0, enterprise: 10, elite: 30, custom: Infinity,
+};
+
+// Matches web's VIDEO_LIMITS -- only whether video is allowed at all
+// matters for customer-facing playback (duration/size limits only
+// matter for the owner's UPLOAD flow, which is Vendor Core, not here).
+const VIDEO_ALLOWED: Record<string, boolean> = {
+  free: false, standard: true, enterprise: true, elite: true, custom: true,
+};
+
+// Isolated into its own component because useVideoPlayer is a hook --
+// it can't be called conditionally inside VendorProfileScreen itself,
+// so this only mounts once a real video URL exists.
+function VendorVideoPlayer({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+  });
+  return (
+    <VideoView
+      style={styles.videoPlayer}
+      player={player}
+      allowsFullscreen
+      allowsPictureInPicture
+      nativeControls
+    />
+  );
+}
+
 type Vendor = {
   id: string; slug: string; name: string; category: string; subcategory: string;
   address: string; phone: string; telephone: string; whatsapp: string; email: string;
@@ -35,6 +62,7 @@ type Vendor = {
   open_time: string | null; close_time: string | null; business_days: string | null;
   verification_status: string; average_rating: number; reviews_count: number;
   auth_user_id: string; latitude: number | null; longitude: number | null; is_sponsored: boolean;
+  business_type: string | null; plan_tier: string;
 };
 
 type SocialLink = { id: string; platform: string; url: string };
@@ -43,6 +71,16 @@ type Product = { id: string; slug: string; product_name: string; price: number; 
 type Service = {
   id: string; slug: string; service_name: string; starting_price: number; short_description: string | null;
 };
+type PortfolioItem = {
+  id: string; title: string; description: string | null; client_name: string | null;
+  completed_on: string | null;
+};
+type PortfolioRecommendation = { recommender_name: string; recommender_company: string | null; message: string };
+type SimilarBusiness = {
+  id: string; slug: string; name: string; logo_url: string | null;
+  verification_status: string; average_rating: number; reviews_count: number;
+};
+type Branch = { id: string; branch_name: string | null; address: string | null; latitude: number | null; longitude: number | null };
 
 const SOCIAL_ICON_MAP: Record<string, string> = {
   instagram: "instagram", facebook: "facebook", tiktok: "tiktok", youtube: "youtube", website: "globe",
@@ -54,9 +92,12 @@ function Badge({ status }: { status: string }) {
   return null;
 }
 
-// Description is saved as HTML from the rich-text editor on web.
-// Stripped to plain text here rather than adding an HTML-rendering
-// package just for read-only display.
+function SmallBadge({ status }: { status: string }) {
+  if (status === "blue") return <FontAwesome6 name="circle-check" size={12} color="#1877F2" />;
+  if (status === "gray") return <FontAwesome6 name="circle-check" size={12} color={colors.textSecondary} />;
+  return null;
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, "\n")
@@ -76,6 +117,18 @@ function formatTime(time: string | null | undefined): string {
   return `${displayHour}:${minute} ${suffix}`;
 }
 
+function formatCompletedDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return value;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function initialsOf(text: string): string {
+  return text.split(" ").map((p) => p.charAt(0)).join("").substring(0, 2).toUpperCase();
+}
+
 export default function VendorProfileScreen() {
   const route = useRoute<Route>();
   const navigation = useNavigation();
@@ -86,6 +139,13 @@ export default function VendorProfileScreen() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
+  const [portfolioRecs, setPortfolioRecs] = useState<Record<string, PortfolioRecommendation>>({});
+  const [showAllPortfolio, setShowAllPortfolio] = useState(false);
+  const [similarBusinesses, setSimilarBusinesses] = useState<SimilarBusiness[]>([]);
+  const [similarLoaded, setSimilarLoaded] = useState(false);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
 
@@ -145,6 +205,58 @@ export default function VendorProfileScreen() {
         .eq("moderation_status", "approved");
       setServices(servs || []);
 
+      // Portfolio — Service/Hybrid vendors only, matching web
+      if (v.business_type === "service" || v.business_type === "hybrid") {
+        const { data: items } = await supabase
+          .from("vendor_portfolio_items")
+          .select("id, title, description, client_name, completed_on")
+          .eq("vendor_id", v.id)
+          .order("display_order", { ascending: true });
+        const portfolioList = items || [];
+        setPortfolioItems(portfolioList);
+
+        const entries = await Promise.all(
+          portfolioList.map(async (item) => {
+            const { data: rec } = await supabase
+              .rpc("get_portfolio_recommendation", { p_portfolio_item_id: item.id })
+              .maybeSingle();
+            return [item.id, rec] as const;
+          })
+        );
+        const byItem: Record<string, PortfolioRecommendation> = {};
+        for (const [id, rec] of entries) if (rec) byItem[id] = rec as PortfolioRecommendation;
+        setPortfolioRecs(byItem);
+      }
+
+      // Similar Businesses
+      const { data: similar } = await supabase.rpc("get_similar_businesses", {
+        p_exclude_vendor_id: v.id,
+        p_target_category: v.category,
+        p_limit: 6,
+      });
+      setSimilarBusinesses(similar || []);
+      setSimilarLoaded(true);
+
+      // Branches — read-only list, respecting plan limit
+      const { data: branchData } = await supabase
+        .from("branches")
+        .select("id, branch_name, address, latitude, longitude")
+        .eq("vendor_id", v.id)
+        .eq("account_status", "active");
+      const limit = BRANCH_LIMITS[v.plan_tier] ?? 0;
+      setBranches(branchData && limit > 0 ? branchData.slice(0, limit) : []);
+
+      // Video — only if the plan allows it, matching web's VIDEO_LIMITS
+      if (VIDEO_ALLOWED[v.plan_tier]) {
+        const { data: media } = await supabase
+          .from("vendor_media")
+          .select("file_url")
+          .eq("vendor_id", v.id)
+          .eq("media_type", "video")
+          .limit(1);
+        setVideoUrl(media?.[0]?.file_url || null);
+      }
+
       // Favorite state — logged-in customer, not the owner
       if (user && v.auth_user_id !== user.id) {
         const { data: customer } = await supabase.from("customers").select("id").eq("auth_user_id", user.id).maybeSingle();
@@ -176,15 +288,9 @@ export default function VendorProfileScreen() {
 
   async function openVisitModal() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      navigation.navigate("CustomerLogin" as never);
-      return;
-    }
+    if (!user) { navigation.navigate("CustomerLogin" as never); return; }
     const { data: customer } = await supabase.from("customers").select("id, name, phone").eq("auth_user_id", user.id).maybeSingle();
-    if (!customer) {
-      navigation.navigate("CustomerLogin" as never);
-      return;
-    }
+    if (!customer) { navigation.navigate("CustomerLogin" as never); return; }
     setVisitCustomer(customer);
     setVisitPhone(customer.phone || "");
     setVisitLocation("");
@@ -197,7 +303,6 @@ export default function VendorProfileScreen() {
     if (!vendor || !visitCustomer) return;
     if (!visitPhone.trim()) { alert("Please add a phone number so the vendor can confirm it's really you."); return; }
     if (!visitLocation.trim()) { alert("Please add the location or address for the visit."); return; }
-
     setSubmittingVisit(true);
     if (visitPhone.trim() !== (visitCustomer.phone || "")) {
       await supabase.from("customers").update({ phone: visitPhone.trim() }).eq("id", visitCustomer.id);
@@ -267,6 +372,7 @@ export default function VendorProfileScreen() {
     : vendor.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(vendor.address)}` : null;
 
   const plainDescription = vendor.description ? stripHtml(vendor.description) : "";
+  const visiblePortfolio = showAllPortfolio ? portfolioItems : portfolioItems.slice(0, 3);
 
   return (
     <ScrollView style={styles.container}>
@@ -342,7 +448,7 @@ export default function VendorProfileScreen() {
           )}
         </View>
 
-        {/* ABOUT — Slice 2 */}
+        {/* ABOUT */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>About the Business</Text>
           {plainDescription ? (
@@ -350,12 +456,11 @@ export default function VendorProfileScreen() {
           ) : (
             <Text style={styles.emptyText}>No description added yet.</Text>
           )}
-
           {(vendor.open_time || vendor.close_time) && (
             <View style={styles.contactRow}>
               <FontAwesome6 name="clock" size={13} color={colors.textSecondary} />
               <View style={{ marginLeft: 8 }}>
-                <Text style={styles.contactText}>Opens {formatTime(vendor.open_time)} • Closes {formatTime(vendor.close_time)}</Text>
+                <Text style={styles.contactText}><Text style={styles.hoursHighlight}>Opens</Text> {formatTime(vendor.open_time)} • <Text style={styles.hoursHighlight}>Closes</Text> {formatTime(vendor.close_time)}</Text>
                 {vendor.business_days && <Text style={styles.contactSubtext}>{vendor.business_days.split(",").join(" • ")}</Text>}
               </View>
             </View>
@@ -374,21 +479,61 @@ export default function VendorProfileScreen() {
           )}
         </View>
 
-        {/* PRODUCTS & SERVICES — Slice 2 */}
-        {(products.length > 0 || services.length > 0) && (
+        {/* PORTFOLIO — Slice 3, Service/Hybrid vendors only */}
+        {(vendor.business_type === "service" || vendor.business_type === "hybrid") && portfolioItems.length > 0 && (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Portfolio</Text>
+            <Text style={styles.mediaHint}>A look at past work — completed projects for previous clients.</Text>
+
+            {visiblePortfolio.map((item) => {
+              const rec = portfolioRecs[item.id];
+              const displayName = rec ? rec.recommender_name : item.client_name;
+              const initials = initialsOf(displayName || item.title || "");
+              return (
+                <View key={item.id} style={styles.portfolioRow}>
+                  <View style={styles.portfolioHeader}>
+                    <View style={styles.portfolioAvatar}><Text style={styles.portfolioAvatarText}>{initials}</Text></View>
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={styles.portfolioTitle}>{item.title}</Text>
+                      {item.completed_on && <Text style={styles.portfolioDate}>Completed: {formatCompletedDate(item.completed_on)}</Text>}
+                      {displayName && (
+                        <Text style={styles.portfolioDate}>
+                          {displayName}{rec?.recommender_company ? ` · ${rec.recommender_company}` : ""}
+                          {rec ? "  ✓ Verified" : ""}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  {item.description && <Text style={styles.portfolioDescription}>{item.description}</Text>}
+                  {rec && (
+                    <View style={styles.portfolioQuote}>
+                      <Text style={styles.portfolioQuoteLabel}>Client recommendation</Text>
+                      <Text style={styles.portfolioQuoteText}>&ldquo;{rec.message}&rdquo;</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+
+            {portfolioItems.length > 3 && (
+              <TouchableOpacity style={styles.viewAllBtn} onPress={() => setShowAllPortfolio((v) => !v)}>
+                <Text style={styles.viewAllText}>{showAllPortfolio ? "Show less" : `See More (${portfolioItems.length - 3} more)`}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* PRODUCTS & SERVICES */}
+        {(products.length > 0 || services.length > 0 || videoUrl) && (
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Products & Services</Text>
-
             {products.length > 0 && (
               <>
                 <Text style={styles.subheading}>Products</Text>
                 <View style={styles.productGrid}>
                   {products.map((p) => (
                     <View key={p.id} style={styles.productCard}>
-                      <Image
-                        source={{ uri: p.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }}
-                        style={styles.productImage}
-                      />
+                      <Image source={{ uri: p.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.productImage} />
                       <Text style={styles.productName} numberOfLines={2}>{p.product_name}</Text>
                       <Text style={styles.productPrice}>₦{Number(p.price || 0).toLocaleString()}</Text>
                       {vendor.is_sponsored && <Text style={styles.sponsoredTag}>SPONSORED</Text>}
@@ -397,19 +542,24 @@ export default function VendorProfileScreen() {
                 </View>
               </>
             )}
-
             {services.length > 0 && (
               <>
                 <Text style={[styles.subheading, { marginTop: products.length > 0 ? 20 : 0 }]}>Services</Text>
                 {services.map((s) => (
                   <View key={s.id} style={styles.serviceCard}>
                     <Text style={styles.serviceName}>{s.service_name}</Text>
-                    {s.short_description && (
-                      <Text style={styles.serviceDescription} numberOfLines={2}>{s.short_description}</Text>
-                    )}
+                    {s.short_description && <Text style={styles.serviceDescription} numberOfLines={2}>{s.short_description}</Text>}
                     <Text style={styles.servicePrice}>Starting from ₦{Number(s.starting_price || 0).toLocaleString()}</Text>
                   </View>
                 ))}
+              </>
+            )}
+
+            {/* VIDEO — Slice 3 */}
+            {videoUrl && (
+              <>
+                <Text style={[styles.subheading, { marginTop: 20 }]}>Business Video</Text>
+                <VendorVideoPlayer uri={videoUrl} />
               </>
             )}
           </View>
@@ -422,7 +572,6 @@ export default function VendorProfileScreen() {
             <Text style={styles.rateBtnText}>Rate</Text>
           </TouchableOpacity>
         </View>
-
         {reviews.length === 0 ? (
           <Text style={styles.emptyText}>No reviews yet. Be the first to leave one.</Text>
         ) : (
@@ -435,6 +584,49 @@ export default function VendorProfileScreen() {
               <Text style={styles.reviewText}>{r.review_text}</Text>
             </View>
           ))
+        )}
+
+        {/* SIMILAR BUSINESSES — Slice 3 */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Explore Similar Businesses</Text>
+          {!similarLoaded ? (
+            <Text style={styles.emptyText}>Similar businesses will appear here.</Text>
+          ) : similarBusinesses.length > 0 ? (
+            <View style={styles.similarGrid}>
+              {similarBusinesses.map((b) => (
+                <TouchableOpacity
+                  key={b.id}
+                  style={styles.similarCard}
+                  onPress={() => navigation.navigate("VendorProfile" as never, { slug: b.slug } as never)}
+                >
+                  <Image source={{ uri: b.logo_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.similarLogo} />
+                  <View style={styles.similarNameRow}>
+                    <Text style={styles.similarName} numberOfLines={1}>{b.name}</Text>
+                    <SmallBadge status={b.verification_status} />
+                  </View>
+                  <Text style={styles.similarRating}>★ {Number(b.average_rating || 0).toFixed(1)} ({b.reviews_count || 0})</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
+        </View>
+
+        {/* BRANCHES — Slice 3, read-only */}
+        {branches.length > 0 && (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Branches</Text>
+            {branches.map((branch) => (
+              <View key={branch.id} style={styles.branchItem}>
+                <Text style={styles.branchName}>{branch.branch_name || ""}</Text>
+                <Text style={styles.branchAddress}>{branch.address || ""}</Text>
+                {branch.latitude && branch.longitude && (
+                  <TouchableOpacity onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${branch.latitude},${branch.longitude}`)}>
+                    <Text style={styles.branchMapLink}>View on Map</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+          </View>
         )}
       </View>
 
@@ -509,7 +701,7 @@ const styles = StyleSheet.create({
   coverPlaceholder: { width: "100%", height: "100%", backgroundColor: "#1a1a1a" },
   backBtn: { position: "absolute", top: 44, left: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
 
-  content: { padding: 20, paddingTop: 0, marginTop: -45 },
+  content: { padding: 20, paddingTop: 0, marginTop: -35 },
   heroRow: { flexDirection: "row", alignItems: "flex-end" },
   logo: { width: 64, height: 64, borderRadius: 12, borderWidth: 2, borderColor: colors.dark, backgroundColor: colors.dark, resizeMode: "cover", overflow: "hidden" },
   logoPlaceholder: { width: 64, height: 64, borderRadius: 12, borderWidth: 2, borderColor: colors.dark, backgroundColor: "#141414", alignItems: "center", justifyContent: "center" },
@@ -534,7 +726,22 @@ const styles = StyleSheet.create({
   aboutText: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, marginTop: 10 },
   contactRow: { flexDirection: "row", alignItems: "center", marginTop: 14 },
   contactText: { color: colors.white, fontSize: 13 },
+  hoursHighlight: { color: colors.primary, fontWeight: "700" },
   contactSubtext: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+
+  mediaHint: { color: colors.textSecondary, fontSize: 12, marginTop: 6, marginBottom: 14 },
+  portfolioRow: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 14, marginTop: 14 },
+  portfolioHeader: { flexDirection: "row", alignItems: "flex-start" },
+  portfolioAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  portfolioAvatarText: { color: colors.black, fontWeight: "700", fontSize: 13 },
+  portfolioTitle: { color: colors.white, fontSize: 14, fontWeight: "600" },
+  portfolioDate: { color: colors.textSecondary, fontSize: 11, marginTop: 2 },
+  portfolioDescription: { color: colors.textSecondary, fontSize: 13, marginTop: 8, lineHeight: 19 },
+  portfolioQuote: { backgroundColor: "#0d0d0d", borderRadius: 8, padding: 10, marginTop: 10 },
+  portfolioQuoteLabel: { color: colors.primary, fontSize: 11, fontWeight: "700" },
+  portfolioQuoteText: { color: colors.textSecondary, fontSize: 12, marginTop: 4, fontStyle: "italic" },
+  viewAllBtn: { marginTop: 14, alignItems: "center", paddingVertical: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 8 },
+  viewAllText: { color: colors.primary, fontSize: 13, fontWeight: "600" },
 
   subheading: { color: colors.white, fontSize: 14, fontWeight: "700", marginTop: 14, marginBottom: 10 },
   productGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
@@ -547,6 +754,7 @@ const styles = StyleSheet.create({
   serviceName: { color: colors.white, fontSize: 14, fontWeight: "600" },
   serviceDescription: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
   servicePrice: { color: colors.primary, fontSize: 12, fontWeight: "700", marginTop: 6 },
+  videoPlayer: { width: "100%", height: 200, borderRadius: 10, backgroundColor: "#000", marginTop: 4 },
 
   reviewsHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 24, marginBottom: 12 },
   rateBtn: { backgroundColor: colors.primary, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 16 },
@@ -557,6 +765,18 @@ const styles = StyleSheet.create({
   reviewerName: { color: colors.white, fontWeight: "600", fontSize: 14 },
   verifiedTag: { color: colors.primary, fontSize: 11, fontWeight: "600" },
   reviewText: { color: colors.textSecondary, fontSize: 13, marginTop: 6 },
+
+  similarGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
+  similarCard: { width: "30%", backgroundColor: "#0d0d0d", borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 8, alignItems: "center" },
+  similarLogo: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.border },
+  similarNameRow: { flexDirection: "row", alignItems: "center", gap: 3, marginTop: 6 },
+  similarName: { color: colors.white, fontSize: 11, fontWeight: "600", maxWidth: 70 },
+  similarRating: { color: colors.textSecondary, fontSize: 10, marginTop: 2 },
+
+  branchItem: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12, marginTop: 12 },
+  branchName: { color: colors.white, fontSize: 14, fontWeight: "600" },
+  branchAddress: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  branchMapLink: { color: colors.primary, fontSize: 12, fontWeight: "600", marginTop: 6 },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   modalCard: { backgroundColor: colors.dark, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 40 },

@@ -37,12 +37,26 @@ export default function LoggedInScreen({ route }: Props) {
       </Text>
 
       {role === "customer" && (
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => navigation.navigate("SearchHistory")}
-        >
-          <Text style={styles.buttonText}>View My Search History</Text>
-        </TouchableOpacity>
+        <>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.navigate("Favorites")}
+          >
+            <Text style={styles.buttonText}>View My Favorites</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.navigate("MyReviews")}
+          >
+            <Text style={styles.buttonText}>View My Reviews</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.navigate("SearchHistory")}
+          >
+            <Text style={styles.buttonText}>View My Search History</Text>
+          </TouchableOpacity>
+        </>
       )}
     </View>
   );

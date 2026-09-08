@@ -20,7 +20,10 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -31,7 +34,8 @@
         {
           "locationWhenInUsePermission": "Spotlight uses your location to show how far away vendors are and let you search by distance."
         }
-      ]
+      ],
+      "expo-video"
     ]
   }
 }

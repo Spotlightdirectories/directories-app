@@ -29,6 +29,7 @@ type ResultItem = {
   name: string;
   vendorName: string;
   vendorSlug: string;
+  itemSlug?: string;
   price: number | null;
   kind: "product" | "service" | "vendor";
   lat: number | null;
@@ -129,6 +130,7 @@ export default function ResultsScreen() {
 
     let productItems: ResultItem[] = (productsRes.data || []).map((p: any) => ({
       key: `product-${p.id}`, name: p.product_name, vendorName: p.vendor_name, vendorSlug: p.vendor_slug,
+      itemSlug: p.slug,
       price: p.price, kind: "product" as const, lat: p.vendor_latitude ?? null, lng: p.vendor_longitude ?? null,
       sponsored: !!p.vendor_is_sponsored,
     }));

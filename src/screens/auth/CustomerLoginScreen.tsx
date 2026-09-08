@@ -94,6 +94,10 @@ export default function CustomerLoginScreen() {
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
         {loading ? <ActivityIndicator color={colors.black} /> : <Text style={styles.buttonText}>Log In</Text>}
       </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => navigation.navigate("CustomerSignup")}>
+        <Text style={styles.footerLink}>Don't have an account? Sign up</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -138,4 +142,5 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   buttonText: { color: colors.black, fontWeight: "700", fontSize: 15 },
+  footerLink: { color: colors.primary, fontSize: 13, textAlign: "center", marginTop: 16 },
 });
