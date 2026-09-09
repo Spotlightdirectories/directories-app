@@ -81,6 +81,9 @@ export default function ProductsScreen() {
   const [attributeDefs, setAttributeDefs] = useState<AttributeDef[]>([]);
   const [attributeValues, setAttributeValues] = useState<AttributeValues>({});
   const [attrPickerOpen, setAttrPickerOpen] = useState<string | null>(null);
+  const [categorySearch, setCategorySearch] = useState("");
+  const [subcategorySearch, setSubcategorySearch] = useState("");
+  const [subSubSearch, setSubSubSearch] = useState("");
 
   const [brand, setBrand] = useState("");
   const [variant, setVariant] = useState("");
