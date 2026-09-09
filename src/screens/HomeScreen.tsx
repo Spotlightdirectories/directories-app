@@ -67,6 +67,8 @@ export default function HomeScreen() {
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [statePickerOpen, setStatePickerOpen] = useState(false);
   const [lgaPickerOpen, setLgaPickerOpen] = useState(false);
+  const [stateSearch, setStateSearch] = useState("");
+  const [lgaSearch, setLgaSearch] = useState("");
   const [distanceEnabled, setDistanceEnabled] = useState(false);
   const [userLat, setUserLat] = useState<number | null>(null);
   const [userLng, setUserLng] = useState<number | null>(null);
@@ -74,6 +76,8 @@ export default function HomeScreen() {
   const [locationStatus, setLocationStatus] = useState<"idle" | "detecting" | "ready" | "denied">("idle");
 
   const lgaOptions = state ? nigeriaData[state] : [];
+  const filteredStates = STATES.filter((s) => s.toLowerCase().includes(stateSearch.toLowerCase()));
+  const filteredLgas = lgaOptions.filter((l) => l.toLowerCase().includes(lgaSearch.toLowerCase()));
   const activeFilterCount = [state, lga, verifiedOnly || null, distanceEnabled || null].filter(Boolean).length;
 
   useEffect(() => {
@@ -381,12 +385,22 @@ export default function HomeScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select State</Text>
-            <FlatList data={STATES} keyExtractor={(s) => s} renderItem={({ item }) => (
-              <TouchableOpacity style={styles.pickerItem} onPress={() => { setState(item); setLga(null); setStatePickerOpen(false); }}>
+            <TextInput
+              style={styles.pickerSearchInput}
+              placeholder="Search states..."
+              placeholderTextColor={colors.textSecondary}
+              value={stateSearch}
+              onChangeText={setStateSearch}
+              autoFocus
+            />
+            <FlatList data={filteredStates} keyExtractor={(s) => s} renderItem={({ item }) => (
+              <TouchableOpacity style={styles.pickerItem} onPress={() => { setState(item); setLga(null); setStatePickerOpen(false); setStateSearch(""); }}>
                 <Text style={styles.pickerItemText}>{item}</Text>
               </TouchableOpacity>
-            )} />
-            <TouchableOpacity style={styles.closeButton} onPress={() => setStatePickerOpen(false)}>
+            )}
+            ListEmptyComponent={<Text style={styles.noResults}>No matching states.</Text>}
+            />
+            <TouchableOpacity style={styles.closeButton} onPress={() => { setStatePickerOpen(false); setStateSearch(""); }}>
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
@@ -397,12 +411,22 @@ export default function HomeScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select LGA</Text>
-            <FlatList data={lgaOptions} keyExtractor={(l) => l} renderItem={({ item }) => (
-              <TouchableOpacity style={styles.pickerItem} onPress={() => { setLga(item); setLgaPickerOpen(false); }}>
+            <TextInput
+              style={styles.pickerSearchInput}
+              placeholder="Search LGAs..."
+              placeholderTextColor={colors.textSecondary}
+              value={lgaSearch}
+              onChangeText={setLgaSearch}
+              autoFocus
+            />
+            <FlatList data={filteredLgas} keyExtractor={(l) => l} renderItem={({ item }) => (
+              <TouchableOpacity style={styles.pickerItem} onPress={() => { setLga(item); setLgaPickerOpen(false); setLgaSearch(""); }}>
                 <Text style={styles.pickerItemText}>{item}</Text>
               </TouchableOpacity>
-            )} />
-            <TouchableOpacity style={styles.closeButton} onPress={() => setLgaPickerOpen(false)}>
+            )}
+            ListEmptyComponent={<Text style={styles.noResults}>No matching LGAs.</Text>}
+            />
+            <TouchableOpacity style={styles.closeButton} onPress={() => { setLgaPickerOpen(false); setLgaSearch(""); }}>
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
@@ -470,6 +494,8 @@ const styles = StyleSheet.create({
   applyButtonText: { color: colors.black, fontWeight: "700" },
 
   pickerCard: { backgroundColor: colors.dark, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, maxHeight: "75%" },
+  pickerSearchInput: { backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.white, fontSize: 14, marginBottom: 12 },
+  noResults: { color: colors.textSecondary, fontSize: 13, textAlign: "center", paddingVertical: 20 },
   pickerItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   pickerItemText: { color: colors.white, fontSize: 15 },
   closeButton: { marginTop: 16, padding: 14, alignItems: "center", borderWidth: 1, borderColor: colors.border, borderRadius: 8 },

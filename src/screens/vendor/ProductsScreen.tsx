@@ -134,12 +134,26 @@ export default function ProductsScreen() {
     supabase.from("sub_subcategories").select("id,name").eq("subcategory_id", subcategoryId).order("display_order").then(({ data }) => setSubSubcategories(data || []));
   }, [subcategoryId]);
 
+  // Spec/attribute definitions for the selected category -- fetches
+  // both category-wide and any subcategory-specific overrides, then
+  // resolves per key: a row scoped to the currently selected
+  // subcategory wins over the category-wide row for that same key.
+  // Added 2026-09-08 to fix PPE's Size field (Safety Boot/Shoe need
+  // numeric sizes; every other PPE subcategory needs letters) --
+  // same fix as web, matching exactly.
   useEffect(() => {
     if (!categoryId) { setAttributeDefs([]); setAttributeValues({}); return; }
-    supabase.from("product_attributes").select("id,key,label,field_type,options,display_order").eq("category_id", categoryId).order("display_order").then(({ data }) => {
-      setAttributeDefs((data as AttributeDef[]) || []);
+    supabase.from("product_attributes").select("id,key,label,field_type,options,display_order,subcategory_id").eq("category_id", categoryId).order("display_order").then(({ data }) => {
+      const rows = (data as (AttributeDef & { subcategory_id: string | null })[]) || [];
+      const byKey = new Map<string, AttributeDef>();
+      for (const row of rows) {
+        if (row.subcategory_id !== null && row.subcategory_id !== subcategoryId) continue;
+        const existing = byKey.get(row.key);
+        if (!existing || row.subcategory_id !== null) byKey.set(row.key, row);
+      }
+      setAttributeDefs(Array.from(byKey.values()).sort((a, b) => a.display_order - b.display_order));
     });
-  }, [categoryId]);
+  }, [categoryId, subcategoryId]);
 
   const trialActive = vendor ? isTrialActive(vendor.plan_tier, vendor.trial_started_at) : false;
   const currentLimit = trialActive ? 5 : (PRODUCT_LIMITS[vendor?.plan_tier || "free"] ?? 1);
@@ -388,6 +402,9 @@ export default function ProductsScreen() {
   if (!vendor) return <View style={styles.center}><Text style={styles.emptyText}>Vendor account not found.</Text></View>;
 
   const activeAttrDef = attributeDefs.find((d) => d.key === attrPickerOpen);
+  const filteredCategories = categories.filter((c) => c.name.toLowerCase().includes(categorySearch.toLowerCase()));
+  const filteredSubcategories = subcategories.filter((s) => s.name.toLowerCase().includes(subcategorySearch.toLowerCase()));
+  const filteredSubSubcategories = subSubcategories.filter((s) => s.name.toLowerCase().includes(subSubSearch.toLowerCase()));
 
   return (
     <View style={styles.container}>
@@ -523,12 +540,22 @@ export default function ProductsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select Category</Text>
-            <FlatList data={categories} keyExtractor={(c) => c.id} renderItem={({ item }) => (
-              <TouchableOpacity style={styles.pickerItem} onPress={() => { setCategoryId(item.id); setSubcategoryId(""); setSubSubcategoryId(""); setCategoryPickerOpen(false); }}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search categories..."
+              placeholderTextColor={colors.textSecondary}
+              value={categorySearch}
+              onChangeText={setCategorySearch}
+              autoFocus
+            />
+            <FlatList data={filteredCategories} keyExtractor={(c) => c.id} renderItem={({ item }) => (
+              <TouchableOpacity style={styles.pickerItem} onPress={() => { setCategoryId(item.id); setSubcategoryId(""); setSubSubcategoryId(""); setCategoryPickerOpen(false); setCategorySearch(""); }}>
                 <Text style={styles.pickerItemText}>{item.name}</Text>
               </TouchableOpacity>
-            )} />
-            <TouchableOpacity style={styles.closeBtn} onPress={() => setCategoryPickerOpen(false)}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
+            )}
+            ListEmptyComponent={<Text style={styles.noResults}>No matching categories.</Text>}
+            />
+            <TouchableOpacity style={styles.closeBtn} onPress={() => { setCategoryPickerOpen(false); setCategorySearch(""); }}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -537,12 +564,22 @@ export default function ProductsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select Subcategory</Text>
-            <FlatList data={subcategories} keyExtractor={(s) => s.id} renderItem={({ item }) => (
-              <TouchableOpacity style={styles.pickerItem} onPress={() => { setSubcategoryId(item.id); setSubSubcategoryId(""); setSubcategoryPickerOpen(false); }}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search subcategories..."
+              placeholderTextColor={colors.textSecondary}
+              value={subcategorySearch}
+              onChangeText={setSubcategorySearch}
+              autoFocus
+            />
+            <FlatList data={filteredSubcategories} keyExtractor={(s) => s.id} renderItem={({ item }) => (
+              <TouchableOpacity style={styles.pickerItem} onPress={() => { setSubcategoryId(item.id); setSubSubcategoryId(""); setSubcategoryPickerOpen(false); setSubcategorySearch(""); }}>
                 <Text style={styles.pickerItemText}>{item.name}</Text>
               </TouchableOpacity>
-            )} />
-            <TouchableOpacity style={styles.closeBtn} onPress={() => setSubcategoryPickerOpen(false)}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
+            )}
+            ListEmptyComponent={<Text style={styles.noResults}>No matching subcategories.</Text>}
+            />
+            <TouchableOpacity style={styles.closeBtn} onPress={() => { setSubcategoryPickerOpen(false); setSubcategorySearch(""); }}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -551,12 +588,22 @@ export default function ProductsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select Specific Type</Text>
-            <FlatList data={subSubcategories} keyExtractor={(s) => s.id} renderItem={({ item }) => (
-              <TouchableOpacity style={styles.pickerItem} onPress={() => { setSubSubcategoryId(item.id); setSubSubPickerOpen(false); }}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search..."
+              placeholderTextColor={colors.textSecondary}
+              value={subSubSearch}
+              onChangeText={setSubSubSearch}
+              autoFocus
+            />
+            <FlatList data={filteredSubSubcategories} keyExtractor={(s) => s.id} renderItem={({ item }) => (
+              <TouchableOpacity style={styles.pickerItem} onPress={() => { setSubSubcategoryId(item.id); setSubSubPickerOpen(false); setSubSubSearch(""); }}>
                 <Text style={styles.pickerItemText}>{item.name}</Text>
               </TouchableOpacity>
-            )} />
-            <TouchableOpacity style={styles.closeBtn} onPress={() => setSubSubPickerOpen(false)}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
+            )}
+            ListEmptyComponent={<Text style={styles.noResults}>No matching options.</Text>}
+            />
+            <TouchableOpacity style={styles.closeBtn} onPress={() => { setSubSubPickerOpen(false); setSubSubSearch(""); }}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -650,6 +697,8 @@ const styles = StyleSheet.create({
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   modalTitle: { color: colors.white, fontSize: 18, fontWeight: "700", marginBottom: 16 },
+  searchInput: { backgroundColor: "#0d0d0d", borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.white, fontSize: 14, marginBottom: 12 },
+  noResults: { color: colors.textSecondary, fontSize: 13, textAlign: "center", paddingVertical: 20 },
   pickerCard: { backgroundColor: colors.dark, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, maxHeight: "75%" },
   pickerItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   pickerItemText: { color: colors.white, fontSize: 15 },
