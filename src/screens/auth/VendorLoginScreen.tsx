@@ -88,7 +88,7 @@ export default function VendorLoginScreen() {
 
     // Free plan → in-app dashboard
     if (vendor.plan_tier === "free") {
-      navigation.replace("LoggedIn", { role: "vendor", name: vendor.name || email });
+      navigation.replace("DashboardHome");
       return;
     }
 
@@ -102,7 +102,7 @@ export default function VendorLoginScreen() {
 
     // Active paid plan → in-app dashboard
     if (vendor.subscription_status === "active") {
-      navigation.replace("LoggedIn", { role: "vendor", name: vendor.name || email });
+      navigation.replace("DashboardHome");
       return;
     }
 

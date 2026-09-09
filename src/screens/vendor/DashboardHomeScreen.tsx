@@ -1,0 +1,285 @@
+// ===============================================================
+// src/screens/vendor/DashboardHomeScreen.tsx
+//
+// Ported from spotlightwebproject_staging/spotlight-next/src/app/
+// (standalone)/vendordashboard/page.tsx's "Overview" section --
+// this IS what "Dashboard home" means on web, there's no separately
+// named file for it.
+//
+// Same 8-item profile-completion checklist, same plan/trial card,
+// same email verification flow (same Edge Function, "swift-task").
+//
+// Nav tiles for Products/Services/Portfolio/Profile/Visit Requests/
+// Settings are present (matching web's sidebar) but show "Coming
+// soon" for now -- those are the NEXT items in the locked build
+// order, not yet built. Each becomes a real navigation once its own
+// turn comes, not silently faked here.
+// ===============================================================
+
+import { useEffect, useState } from "react";
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Alert } from "react-native";
+import { FontAwesome6 } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../navigation/RootNavigator";
+import { supabase } from "../../lib/supabase";
+import { openWebPage } from "../../lib/webHandoff";
+import { colors } from "../../theme/colors";
+
+type Nav = NativeStackNavigationProp<RootStackParamList, "DashboardHome">;
+
+type Vendor = {
+  id: string; name: string | null; email: string | null; spot_id: string | null;
+  plan_tier: string | null; trial_started_at: string | null; email_verified: boolean | null;
+  address: string | null; description: string | null; whatsapp: string | null; telephone: string | null;
+  latitude: number | null; longitude: number | null;
+};
+
+const NAV_TILES = [
+  { key: "products", label: "Products", icon: "box" },
+  { key: "services", label: "Services", icon: "briefcase" },
+  { key: "portfolio", label: "Portfolio", icon: "layer-group" },
+  { key: "profile", label: "Edit Profile", icon: "user" },
+  { key: "visitRequests", label: "Visit Requests", icon: "shield-heart" },
+  { key: "settings", label: "Settings", icon: "gear" },
+] as const;
+
+export default function DashboardHomeScreen() {
+  const navigation = useNavigation<Nav>();
+  const [vendor, setVendor] = useState<Vendor | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [mediaCount, setMediaCount] = useState(0);
+  const [socialCount, setSocialCount] = useState(0);
+  const [categorizedCount, setCategorizedCount] = useState(0);
+  const [verifyState, setVerifyState] = useState<"idle" | "sending" | "sent" | "retry">("idle");
+  const [trialText, setTrialText] = useState<{ days: string; ended: boolean } | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+
+      const { data: v } = await supabase.from("vendors").select("*").eq("auth_user_id", user.id).maybeSingle();
+      if (!v) { setLoading(false); return; }
+      setVendor(v);
+
+      const [{ count: mCount }, { count: sCount }, { count: pCatCount }, { count: sCatCount }] = await Promise.all([
+        supabase.from("vendor_media").select("*", { count: "exact", head: true }).eq("vendor_id", v.id),
+        supabase.from("vendor_social_links").select("*", { count: "exact", head: true }).eq("vendor_id", v.id),
+        supabase.from("vendor_products").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).not("category_id", "is", null),
+        supabase.from("vendor_services").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).not("category_id", "is", null),
+      ]);
+      setMediaCount(mCount || 0);
+      setSocialCount(sCount || 0);
+      setCategorizedCount((pCatCount || 0) + (sCatCount || 0));
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  useEffect(() => {
+    if (!vendor || vendor.plan_tier !== "free" || !vendor.trial_started_at) return;
+    const start = new Date(vendor.trial_started_at);
+    const expiry = new Date(start);
+    expiry.setDate(expiry.getDate() + 90);
+
+    function tick() {
+      const diff = expiry.getTime() - Date.now();
+      if (diff <= 0) {
+        setTrialText({ days: "Your trial has ended", ended: true });
+        return;
+      }
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      setTrialText({ days: `${days} Days Left`, ended: false });
+    }
+    tick();
+    const interval = setInterval(tick, 60000);
+    return () => clearInterval(interval);
+  }, [vendor]);
+
+  async function handleVerifyEmail() {
+    if (!vendor) return;
+    setVerifyState("sending");
+    try {
+      const { error } = await supabase.functions.invoke("swift-task", {
+        body: { vendorId: vendor.id, email: vendor.email },
+      });
+      setVerifyState(error ? "retry" : "sent");
+    } catch {
+      setVerifyState("retry");
+    }
+  }
+
+  function handleTilePress(key: string) {
+    if (key === "products") {
+      navigation.navigate("Products");
+      return;
+    }
+    Alert.alert("Coming soon", "This section is being built next.");
+  }
+
+  if (loading) {
+    return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
+  }
+  if (!vendor) {
+    return <View style={styles.center}><Text style={styles.emptyText}>Vendor account not found.</Text></View>;
+  }
+
+  const emailVerified = vendor.email_verified === true;
+  const hasBasic = !!(vendor.name && vendor.email);
+  const hasDetails = !!(vendor.address && vendor.description);
+  const hasCategory = categorizedCount > 0;
+  const hasContact = !!(vendor.whatsapp && vendor.telephone);
+  const hasLocation = !!(vendor.latitude && vendor.longitude);
+  const hasMedia = mediaCount > 0;
+  const hasSocial = socialCount > 0;
+
+  const checklistItems = [
+    { label: "Business name & email", ok: hasBasic },
+    { label: "Address & description", ok: hasDetails },
+    { label: "At least 1 categorized product or service", ok: hasCategory },
+    { label: "WhatsApp & telephone", ok: hasContact },
+    { label: "Business location (map)", ok: hasLocation },
+    { label: "Email verified", ok: emailVerified },
+    { label: "Add at least 1 media", ok: hasMedia },
+    { label: "Add at least 1 social link", ok: hasSocial },
+  ];
+  const score = checklistItems.filter((i) => i.ok).length;
+  const percent = Math.round((score / checklistItems.length) * 100);
+  const complete = percent === 100;
+
+  const verifyLabel =
+    verifyState === "sending" ? "Sending..." :
+    verifyState === "sent" ? "Email Sent" :
+    verifyState === "retry" ? "Try Again" : "Verify Email";
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.vendorName}>{vendor.name || "—"}</Text>
+          <Text style={styles.spotId}>{vendor.spot_id || "—"}</Text>
+        </View>
+      </View>
+
+      {/* PROFILE STATUS */}
+      <View style={styles.card}>
+        <View style={styles.statusTop}>
+          <View style={[styles.statusIcon, { backgroundColor: complete ? "#dcfce7" : "#fef3c7" }]}>
+            <Text style={{ color: complete ? "#166534" : "#92400e", fontWeight: "700" }}>✔</Text>
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.cardLabel}>Profile Status</Text>
+            <Text style={styles.statusTitle}>{complete ? "Fully Onboarded & Optimized" : "Partially Onboarded"}</Text>
+            <Text style={styles.statusSubtext}>Your business listing is {percent}% complete.</Text>
+          </View>
+        </View>
+
+        {checklistItems.map((item, i) => (
+          <View key={i} style={styles.checkRow}>
+            <Text style={{ color: item.ok ? colors.success : colors.error }}>{item.ok ? "✔" : "✖"}</Text>
+            <Text style={styles.checkLabel}>{item.label}</Text>
+          </View>
+        ))}
+
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${percent}%`, backgroundColor: complete ? colors.success : "#facc15" }]} />
+        </View>
+      </View>
+
+      {/* PLAN */}
+      <View style={styles.card}>
+        <View style={styles.planTop}>
+          <FontAwesome6 name="bolt" size={16} color={colors.primary} />
+          <View style={{ marginLeft: 10 }}>
+            <Text style={styles.cardLabel}>Current Plan</Text>
+            <Text style={styles.planName}>{vendor.plan_tier || "—"}</Text>
+          </View>
+        </View>
+        {vendor.plan_tier === "free" && trialText && (
+          <View style={[styles.trialBox, trialText.ended && styles.trialBoxEnded]}>
+            <Text style={styles.trialLabel}>Free Trial</Text>
+            <Text style={styles.trialDays}>{trialText.days}</Text>
+          </View>
+        )}
+        <TouchableOpacity style={styles.upgradeBtn} onPress={() => openWebPage("/getlisted?context=upgrade")}>
+          <Text style={styles.upgradeBtnText}>Compare Plans</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* BUSINESS QUICK INFO */}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Business Quick Info</Text>
+        <Text style={styles.infoLabel}>BUSINESS NAME</Text>
+        <Text style={styles.infoValue}>{vendor.name || ""}</Text>
+        <Text style={styles.infoLabel}>SPOT ID</Text>
+        <Text style={styles.infoValue}>{vendor.spot_id || ""}</Text>
+        <Text style={styles.infoLabel}>REGISTERED EMAIL</Text>
+        <View style={styles.emailRow}>
+          <Text style={styles.infoValue}>{vendor.email || ""}</Text>
+          {emailVerified ? (
+            <Text style={styles.verifiedTag}>Verified</Text>
+          ) : (
+            <TouchableOpacity onPress={handleVerifyEmail} disabled={verifyState === "sending" || verifyState === "sent"}>
+              <Text style={styles.verifyBtn}>{verifyLabel}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* NAV TILES */}
+      <Text style={styles.sectionTitle}>Manage Your Business</Text>
+      <View style={styles.tileGrid}>
+        {NAV_TILES.map((tile) => (
+          <TouchableOpacity key={tile.key} style={styles.tile} onPress={() => handleTilePress(tile.key)}>
+            <FontAwesome6 name={tile.icon as any} size={20} color={colors.white} />
+            <Text style={styles.tileLabel}>{tile.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.dark },
+  scrollContent: { padding: 20, paddingTop: 50, paddingBottom: 60 },
+  center: { flex: 1, backgroundColor: colors.dark, alignItems: "center", justifyContent: "center" },
+  emptyText: { color: colors.textSecondary, fontSize: 13 },
+  header: { marginBottom: 20 },
+  vendorName: { color: colors.white, fontSize: 20, fontWeight: "700" },
+  spotId: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+
+  card: { backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, marginBottom: 16 },
+  statusTop: { flexDirection: "row", alignItems: "center" },
+  statusIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  cardLabel: { color: colors.textSecondary, fontSize: 11, textTransform: "uppercase" },
+  statusTitle: { color: colors.white, fontSize: 15, fontWeight: "700", marginTop: 2 },
+  statusSubtext: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+
+  checkRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
+  checkLabel: { color: colors.textSecondary, fontSize: 12, flexShrink: 1 },
+
+  progressTrack: { height: 6, backgroundColor: "#0d0d0d", borderRadius: 3, marginTop: 14, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 3 },
+
+  planTop: { flexDirection: "row", alignItems: "center" },
+  planName: { color: colors.white, fontSize: 16, fontWeight: "700", marginTop: 2 },
+  trialBox: { backgroundColor: "#0d0d0d", borderRadius: 8, padding: 12, marginTop: 12 },
+  trialBoxEnded: { borderWidth: 1, borderColor: colors.warning },
+  trialLabel: { color: colors.textSecondary, fontSize: 11 },
+  trialDays: { color: colors.primary, fontSize: 15, fontWeight: "700", marginTop: 2 },
+  upgradeBtn: { backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 10, alignItems: "center", marginTop: 12 },
+  upgradeBtnText: { color: colors.black, fontWeight: "700", fontSize: 13 },
+
+  sectionTitle: { color: colors.white, fontSize: 15, fontWeight: "700", marginBottom: 10 },
+  infoLabel: { color: colors.textSecondary, fontSize: 10, textTransform: "uppercase", marginTop: 10 },
+  infoValue: { color: colors.white, fontSize: 14, marginTop: 2 },
+  emailRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  verifiedTag: { color: colors.success, fontSize: 12, fontWeight: "700" },
+  verifyBtn: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+
+  tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 30 },
+  tile: { width: "31%", backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 16, alignItems: "center" },
+  tileLabel: { color: colors.white, fontSize: 11, fontWeight: "600", marginTop: 8, textAlign: "center" },
+});

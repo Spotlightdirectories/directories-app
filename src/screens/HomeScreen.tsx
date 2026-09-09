@@ -20,7 +20,7 @@
 // ===============================================================
 
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Switch, Modal, FlatList } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Switch, Modal, FlatList, Image } from "react-native";
 import { FontAwesome6 } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
@@ -215,7 +215,11 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.logo}>Spotlight</Text>
+      <Image
+        source={{ uri: "https://spotlightdirectories.com/images/whitelogo3.png" }}
+        style={styles.logo}
+        resizeMode="contain"
+      />
       <Text style={styles.tagline}>
         <Text style={styles.taglineWord}>FIND</Text><Text style={styles.taglineDot}>.</Text>{" "}
         <Text style={styles.taglineWord}>TRUST</Text><Text style={styles.taglineDot}>.</Text>{" "}
@@ -412,7 +416,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.dark },
   topRow: { flexDirection: "row", padding: 16, paddingTop: 50 },
   loginLink: { color: colors.primary, fontSize: 14, fontWeight: "600" },
-  logo: { color: colors.white, fontSize: 30, fontWeight: "700", textAlign: "center", marginTop: 8 },
+  logo: { width: 220, height: 60, alignSelf: "center", marginTop: 8 },
   tagline: { textAlign: "center", marginTop: 6, marginBottom: 20 },
   taglineWord: { color: colors.textSecondary, fontSize: 13, fontWeight: "300", letterSpacing: 1 },
   taglineDot: { color: colors.primary, fontWeight: "900", fontSize: 15 },

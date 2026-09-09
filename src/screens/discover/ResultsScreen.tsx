@@ -136,6 +136,7 @@ export default function ResultsScreen() {
     }));
     let serviceItems: ResultItem[] = (servicesRes.data || []).map((s: any) => ({
       key: `service-${s.id}`, name: s.service_name, vendorName: s.vendor_name, vendorSlug: s.vendor_slug,
+      itemSlug: s.slug,
       price: s.starting_price, kind: "service" as const, lat: s.vendor_latitude ?? null, lng: s.vendor_longitude ?? null,
       sponsored: !!s.vendor_is_sponsored,
     }));
@@ -175,8 +176,17 @@ export default function ResultsScreen() {
   const activeFilterCount = [state, lga, verifiedOnly || null, distanceEnabled || null].filter(Boolean).length;
 
   function renderItem(item: ResultItem) {
+    function handlePress() {
+      if (item.kind === "product" && item.itemSlug) {
+        navigation.navigate("ProductDetail", { vendorSlug: item.vendorSlug, productSlug: item.itemSlug });
+      } else if (item.kind === "service" && item.itemSlug) {
+        navigation.navigate("ServiceDetail", { vendorSlug: item.vendorSlug, serviceSlug: item.itemSlug });
+      } else {
+        navigation.navigate("VendorProfile", { slug: item.vendorSlug });
+      }
+    }
     return (
-      <TouchableOpacity key={item.key} style={styles.card} onPress={() => navigation.navigate("VendorProfile", { slug: item.vendorSlug })}>
+      <TouchableOpacity key={item.key} style={styles.card} onPress={handlePress}>
         {item.sponsored && <Text style={styles.sponsoredTag}>SPONSORED</Text>}
         <Text style={styles.itemName}>{item.branchName || item.name}</Text>
         {item.kind !== "vendor" && <Text style={styles.itemVendor}>By {item.vendorName}</Text>}
@@ -259,7 +269,7 @@ const styles = StyleSheet.create({
   card: { backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 14, marginBottom: 10 },
   itemName: { color: colors.white, fontSize: 15, fontWeight: "600" },
   itemVendor: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
-  itemPrice: { color: colors.primary, fontSize: 13, marginTop: 4, fontWeight: "600" },
+  itemPrice: { color: colors.success, fontSize: 13, marginTop: 4, fontWeight: "600" },
   itemDistance: { color: colors.primary, fontSize: 11, fontWeight: "700", marginLeft: 4 },
   distanceRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
 });

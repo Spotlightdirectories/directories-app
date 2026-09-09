@@ -532,12 +532,16 @@ export default function VendorProfileScreen() {
                 <Text style={styles.subheading}>Products</Text>
                 <View style={styles.productGrid}>
                   {products.map((p) => (
-                    <View key={p.id} style={styles.productCard}>
+                    <TouchableOpacity
+                      key={p.id}
+                      style={styles.productCard}
+                      onPress={() => navigation.navigate("ProductDetail" as never, { vendorSlug: vendor.slug, productSlug: p.slug } as never)}
+                    >
                       <Image source={{ uri: p.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.productImage} />
                       <Text style={styles.productName} numberOfLines={2}>{p.product_name}</Text>
                       <Text style={styles.productPrice}>₦{Number(p.price || 0).toLocaleString()}</Text>
                       {vendor.is_sponsored && <Text style={styles.sponsoredTag}>SPONSORED</Text>}
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               </>
@@ -546,11 +550,15 @@ export default function VendorProfileScreen() {
               <>
                 <Text style={[styles.subheading, { marginTop: products.length > 0 ? 20 : 0 }]}>Services</Text>
                 {services.map((s) => (
-                  <View key={s.id} style={styles.serviceCard}>
+                  <TouchableOpacity
+                    key={s.id}
+                    style={styles.serviceCard}
+                    onPress={() => navigation.navigate("ServiceDetail" as never, { vendorSlug: vendor.slug, serviceSlug: s.slug } as never)}
+                  >
                     <Text style={styles.serviceName}>{s.service_name}</Text>
                     {s.short_description && <Text style={styles.serviceDescription} numberOfLines={2}>{s.short_description}</Text>}
-                    <Text style={styles.servicePrice}>Starting from ₦{Number(s.starting_price || 0).toLocaleString()}</Text>
-                  </View>
+                    <Text style={styles.serviceDescription}>Starting from <Text style={styles.servicePrice}>₦{Number(s.starting_price || 0).toLocaleString()}</Text></Text>
+                  </TouchableOpacity>
                 ))}
               </>
             )}
@@ -748,12 +756,12 @@ const styles = StyleSheet.create({
   productCard: { width: "47%", backgroundColor: "#0d0d0d", borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10 },
   productImage: { width: "100%", height: 90, borderRadius: 8, backgroundColor: colors.border, resizeMode: "cover" },
   productName: { color: colors.white, fontSize: 12, fontWeight: "600", marginTop: 8 },
-  productPrice: { color: colors.primary, fontSize: 12, fontWeight: "700", marginTop: 4 },
+  productPrice: { color: colors.success, fontSize: 12, fontWeight: "700", marginTop: 4 },
   sponsoredTag: { color: colors.primary, fontSize: 9, fontWeight: "700", marginTop: 4 },
   serviceCard: { backgroundColor: "#0d0d0d", borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 8 },
   serviceName: { color: colors.white, fontSize: 14, fontWeight: "600" },
   serviceDescription: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
-  servicePrice: { color: colors.primary, fontSize: 12, fontWeight: "700", marginTop: 6 },
+  servicePrice: { color: colors.success, fontSize: 12, fontWeight: "700", marginTop: 6 },
   videoPlayer: { width: "100%", height: 200, borderRadius: 10, backgroundColor: "#000", marginTop: 4 },
 
   reviewsHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 24, marginBottom: 12 },

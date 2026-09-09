@@ -9,7 +9,8 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Spotlight uses your location to show how far away vendors are and let you search by distance."
+        "NSLocationWhenInUseUsageDescription": "Spotlight uses your location to show how far away vendors are and let you search by distance.",
+        "NSPhotoLibraryUsageDescription": "Spotlight needs access to your photos so you can add images to your products and services."
       }
     },
     "android": {
@@ -35,7 +36,13 @@
           "locationWhenInUsePermission": "Spotlight uses your location to show how far away vendors are and let you search by distance."
         }
       ],
-      "expo-video"
+      "expo-video",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Spotlight needs access to your photos so you can add images to your products and services."
+        }
+      ]
     ]
   }
 }

@@ -15,6 +15,9 @@ import MyReviewsScreen from "../screens/customer/MyReviewsScreen";
 import ResultsScreen from "../screens/discover/ResultsScreen";
 import VendorProfileScreen from "../screens/discover/VendorProfileScreen";
 import ProductDetailScreen from "../screens/discover/ProductDetailScreen";
+import ServiceDetailScreen from "../screens/discover/ServiceDetailScreen";
+import DashboardHomeScreen from "../screens/vendor/DashboardHomeScreen";
+import ProductsScreen from "../screens/vendor/ProductsScreen";
 
 export type RootStackParamList = {
   Home: undefined;
@@ -44,6 +47,9 @@ export type RootStackParamList = {
   };
   VendorProfile: { slug: string };
   ProductDetail: { vendorSlug: string; productSlug: string };
+  ServiceDetail: { vendorSlug: string; serviceSlug: string };
+  DashboardHome: undefined;
+  Products: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -63,6 +69,9 @@ export default function RootNavigator() {
       <Stack.Screen name="Results" component={ResultsScreen} />
       <Stack.Screen name="VendorProfile" component={VendorProfileScreen} />
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
+      <Stack.Screen name="ServiceDetail" component={ServiceDetailScreen} />
+      <Stack.Screen name="DashboardHome" component={DashboardHomeScreen} />
+      <Stack.Screen name="Products" component={ProductsScreen} />
     </Stack.Navigator>
   );
 }
