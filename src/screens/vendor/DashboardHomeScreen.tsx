@@ -115,6 +115,10 @@ export default function DashboardHomeScreen() {
       navigation.navigate("Products");
       return;
     }
+    if (key === "services") {
+      navigation.navigate("Services");
+      return;
+    }
     Alert.alert("Coming soon", "This section is being built next.");
   }
 
