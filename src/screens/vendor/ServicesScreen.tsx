@@ -529,7 +529,7 @@ export default function ServicesScreen() {
             {s.representative_image_url ? <Image source={{ uri: s.representative_image_url }} style={styles.pillImage} /> : <View style={[styles.pillImage, styles.pillImagePlaceholder]}><FontAwesome6 name="image" size={16} color={colors.textSecondary} /></View>}
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={styles.pillName}>{s.service_name}</Text>
-              {s.starting_price ? <Text style={styles.pillPrice}>From ₦{Number(s.starting_price).toLocaleString()}</Text> : null}
+              {s.starting_price ? <Text style={styles.pillPriceLabel}>From <Text style={styles.pillPrice}>₦{Number(s.starting_price).toLocaleString()}</Text></Text> : null}
             </View>
             <TouchableOpacity onPress={() => handleRemovePending(i)}><FontAwesome6 name="xmark" size={18} color={colors.textSecondary} /></TouchableOpacity>
           </View>
@@ -548,7 +548,7 @@ export default function ServicesScreen() {
                   {s.moderation_status === "pending_review" && <Text style={styles.pendingBadge}>Pending Review</Text>}
                   {s.moderation_status === "rejected" && <Text style={styles.rejectedBadge}>Not Approved</Text>}
                 </View>
-                {s.starting_price ? <Text style={styles.pillPrice}>From ₦{Number(s.starting_price).toLocaleString()}</Text> : null}
+                {s.starting_price ? <Text style={styles.pillPriceLabel}>From <Text style={styles.pillPrice}>₦{Number(s.starting_price).toLocaleString()}</Text></Text> : null}
               </View>
               <TouchableOpacity onPress={() => handleEditSaved(s)} style={{ marginRight: 12 }}><Text style={styles.editLink}>Edit</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => handleDeleteSaved(s.id)}><FontAwesome6 name="xmark" size={18} color={colors.error} /></TouchableOpacity>
@@ -695,7 +695,8 @@ const styles = StyleSheet.create({
   pillImage: { width: 48, height: 48, borderRadius: 8, backgroundColor: colors.border },
   pillImagePlaceholder: { alignItems: "center", justifyContent: "center" },
   pillName: { color: colors.white, fontSize: 13, fontWeight: "600" },
-  pillPrice: { color: colors.success, fontSize: 12, fontWeight: "700", marginTop: 2 },
+  pillPrice: { color: colors.success, fontSize: 12, fontWeight: "700" },
+  pillPriceLabel: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   editLink: { color: colors.primary, fontSize: 12, fontWeight: "700" },
   pendingBadge: { color: "#facc15", fontSize: 9, fontWeight: "700" },
   rejectedBadge: { color: colors.error, fontSize: 9, fontWeight: "700" },
