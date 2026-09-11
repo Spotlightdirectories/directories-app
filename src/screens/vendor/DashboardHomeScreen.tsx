@@ -119,6 +119,10 @@ export default function DashboardHomeScreen() {
       navigation.navigate("Services");
       return;
     }
+    if (key === "portfolio") {
+      navigation.navigate("Portfolio");
+      return;
+    }
     Alert.alert("Coming soon", "This section is being built next.");
   }
 
