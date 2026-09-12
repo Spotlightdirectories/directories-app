@@ -225,7 +225,7 @@ export default function PortfolioScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.back}>‹ Back</Text></TouchableOpacity>
         <TouchableOpacity style={styles.addBtn} onPress={() => setFormOpen((v) => !v)}>
           <FontAwesome6 name="plus" size={12} color={colors.black} />
-          <Text style={styles.addBtnText}>Add Item</Text>
+          <Text style={styles.addBtnText}>Add Portfolio Item</Text>
         </TouchableOpacity>
       </View>
 
@@ -313,7 +313,8 @@ export default function PortfolioScreen() {
                   )}
                   {rec && rec.status === "submitted" && (
                     <Text style={styles.recSubmitted}>
-                      ✓ Verified recommendation from {rec.recommender_name}{rec.recommender_company ? ` (${rec.recommender_company})` : ""}: "{rec.message}"
+                      ✓ Verified recommendation from {rec.recommender_name}{rec.recommender_company ? ` (${rec.recommender_company})` : ""}:{" "}
+                      <Text style={styles.recSubmittedQuote}>"{rec.message}"</Text>
                     </Text>
                   )}
                 </View>
@@ -370,6 +371,7 @@ const styles = StyleSheet.create({
   recCancelBtnText: { color: colors.textSecondary, fontSize: 12 },
   recPending: { color: colors.textSecondary, fontSize: 12 },
   recSubmitted: { color: colors.success, fontSize: 12, lineHeight: 18 },
+  recSubmittedQuote: { color: colors.textSecondary, fontWeight: "400" },
 
   sectionTitle: { color: colors.white, fontSize: 15, fontWeight: "700", marginTop: 20, marginBottom: 10 },
   saveBtn: { backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 14, alignItems: "center", marginTop: 20 },

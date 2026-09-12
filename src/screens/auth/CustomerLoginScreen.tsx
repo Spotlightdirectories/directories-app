@@ -57,7 +57,7 @@ export default function CustomerLoginScreen() {
       return;
     }
 
-    navigation.replace("LoggedIn", { role: "customer", name: customer.name || email });
+    navigation.replace("CustomerDashboard");
   }
 
   return (

@@ -9,9 +9,13 @@ import VendorLoginScreen from "../screens/auth/VendorLoginScreen";
 import CustomerLoginScreen from "../screens/auth/CustomerLoginScreen";
 import CustomerSignupScreen from "../screens/auth/CustomerSignupScreen";
 import LoggedInScreen from "../screens/auth/LoggedInScreen";
+import CustomerDashboardScreen from "../screens/customer/CustomerDashboardScreen";
 import SearchHistoryScreen from "../screens/customer/SearchHistoryScreen";
 import FavoritesScreen from "../screens/customer/FavoritesScreen";
 import MyReviewsScreen from "../screens/customer/MyReviewsScreen";
+import RecentlyViewedScreen from "../screens/customer/RecentlyViewedScreen";
+import MyInquiriesScreen from "../screens/customer/MyInquiriesScreen";
+import MyVisitRequestsScreen from "../screens/customer/MyVisitRequestsScreen";
 import ResultsScreen from "../screens/discover/ResultsScreen";
 import VendorProfileScreen from "../screens/discover/VendorProfileScreen";
 import ProductDetailScreen from "../screens/discover/ProductDetailScreen";
@@ -28,9 +32,13 @@ export type RootStackParamList = {
   CustomerLogin: undefined;
   CustomerSignup: undefined;
   LoggedIn: { role: "vendor" | "customer"; name: string };
+  CustomerDashboard: undefined;
   SearchHistory: undefined;
   Favorites: undefined;
   MyReviews: undefined;
+  RecentlyViewed: undefined;
+  MyInquiries: undefined;
+  MyVisitRequests: undefined;
   Results: {
     audience?: string;
     subgroup?: string;
@@ -67,9 +75,13 @@ export default function RootNavigator() {
       <Stack.Screen name="CustomerLogin" component={CustomerLoginScreen} />
       <Stack.Screen name="CustomerSignup" component={CustomerSignupScreen} />
       <Stack.Screen name="LoggedIn" component={LoggedInScreen} />
+      <Stack.Screen name="CustomerDashboard" component={CustomerDashboardScreen} />
       <Stack.Screen name="SearchHistory" component={SearchHistoryScreen} />
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
       <Stack.Screen name="MyReviews" component={MyReviewsScreen} />
+      <Stack.Screen name="RecentlyViewed" component={RecentlyViewedScreen} />
+      <Stack.Screen name="MyInquiries" component={MyInquiriesScreen} />
+      <Stack.Screen name="MyVisitRequests" component={MyVisitRequestsScreen} />
       <Stack.Screen name="Results" component={ResultsScreen} />
       <Stack.Screen name="VendorProfile" component={VendorProfileScreen} />
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
