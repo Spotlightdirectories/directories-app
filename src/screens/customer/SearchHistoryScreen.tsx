@@ -5,12 +5,23 @@
 // built into customer-profile/page.tsx on the website. Reads the
 // same search_logs rows (with customer_id), same 50-row limit, same
 // display logic -- kept consistent with web rather than reinvented.
+//
+// Bug fix, 2026-09-09 per Cyril: tapping an entry never actually
+// re-ran the search -- the card had no onPress at all, despite the
+// comment above claiming parity with web. Genuinely missing, now
+// fixed: tapping navigates to Results with the same keyword/category/
+// state/lga this entry was originally logged with.
 // ===============================================================
 
 import { useEffect, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import { colors } from "../../theme/colors";
+
+type Nav = NativeStackNavigationProp<RootStackParamList, "SearchHistory">;
 
 type SearchLogRow = {
   id: string;
@@ -24,6 +35,7 @@ type SearchLogRow = {
 };
 
 export default function SearchHistoryScreen() {
+  const navigation = useNavigation<Nav>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [history, setHistory] = useState<SearchLogRow[]>([]);
@@ -74,6 +86,16 @@ export default function SearchHistoryScreen() {
     });
   }
 
+  function reRunSearch(item: SearchLogRow) {
+    navigation.navigate("Results", {
+      keyword: item.search_keyword || undefined,
+      category: item.category || undefined,
+      subcategory: item.subcategory || undefined,
+      state: item.state || undefined,
+      lga: item.lga || undefined,
+    });
+  }
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -84,8 +106,11 @@ export default function SearchHistoryScreen() {
 
   return (
     <View style={styles.container}>
+      <TouchableOpacity onPress={() => navigation.goBack()}>
+        <Text style={styles.back}>‹ Back</Text>
+      </TouchableOpacity>
       <Text style={styles.title}>My Search History</Text>
-      <Text style={styles.subtitle}>Your last 50 searches on Spotlight</Text>
+      <Text style={styles.subtitle}>Your last 50 searches on Spotlight — tap one to search again</Text>
 
       {error ? (
         <Text style={styles.empty}>Couldn't load your search history right now.</Text>
@@ -104,7 +129,7 @@ export default function SearchHistoryScreen() {
             ].filter(Boolean);
 
             return (
-              <TouchableOpacity style={styles.card}>
+              <TouchableOpacity style={styles.card} onPress={() => reRunSearch(item)}>
                 <Text style={styles.keyword}>
                   {item.search_keyword ? `"${item.search_keyword}"` : "Browsed with filters"}
                 </Text>
@@ -122,8 +147,9 @@ export default function SearchHistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.dark, padding: 20 },
+  container: { flex: 1, backgroundColor: colors.dark, padding: 20, paddingTop: 50 },
   center: { flex: 1, backgroundColor: colors.dark, alignItems: "center", justifyContent: "center" },
+  back: { color: colors.primary, fontSize: 15 },
   title: { color: colors.white, fontSize: 22, fontWeight: "700", marginTop: 12 },
   subtitle: { color: colors.textSecondary, fontSize: 13, marginTop: 4, marginBottom: 20 },
   empty: { color: colors.textSecondary, fontSize: 14, textAlign: "center", marginTop: 40 },
