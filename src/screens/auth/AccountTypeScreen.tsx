@@ -11,6 +11,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
+import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "AccountType">;
@@ -20,6 +21,10 @@ export default function AccountTypeScreen() {
 
   return (
     <View style={styles.container}>
+      <TouchableOpacity onPress={() => navigation.goBack()}>
+        <Text style={styles.back}>‹ Back</Text>
+      </TouchableOpacity>
+      <SpotlightMark size={30} style={{ marginBottom: 16 }} />
       <Text style={styles.title}>Log In</Text>
       <Text style={styles.subtitle}>Choose which kind of account you have</Text>
 
@@ -50,6 +55,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dark,
     padding: 24,
     justifyContent: "center",
+  },
+  back: {
+    color: colors.primary,
+    fontSize: 15,
+    position: "absolute",
+    top: 50,
+    left: 24,
   },
   title: {
     color: colors.white,

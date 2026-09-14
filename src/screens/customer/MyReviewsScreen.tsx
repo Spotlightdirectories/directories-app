@@ -14,6 +14,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "MyReviews">;
@@ -72,9 +73,12 @@ export default function MyReviewsScreen() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => navigation.goBack()}>
-        <Text style={styles.back}>‹ Back</Text>
-      </TouchableOpacity>
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.back}>‹ Back</Text>
+        </TouchableOpacity>
+        <SpotlightMark size={22} />
+      </View>
       <Text style={styles.title}>My Reviews</Text>
       <Text style={styles.subtitle}>Reviews you've written</Text>
 
@@ -119,7 +123,8 @@ export default function MyReviewsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.dark, padding: 20, paddingTop: 50 },
   center: { flex: 1, backgroundColor: colors.dark, alignItems: "center", justifyContent: "center" },
-  back: { color: colors.primary, fontSize: 15, marginBottom: 12 },
+  back: { color: colors.primary, fontSize: 15 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   title: { color: colors.white, fontSize: 22, fontWeight: "700" },
   subtitle: { color: colors.textSecondary, fontSize: 13, marginTop: 4, marginBottom: 20 },
   empty: { color: colors.textSecondary, fontSize: 14, textAlign: "center", marginTop: 40 },

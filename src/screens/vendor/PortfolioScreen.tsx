@@ -21,6 +21,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Activi
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../../lib/supabase";
+import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
 type PortfolioItem = {
@@ -223,6 +224,7 @@ export default function PortfolioScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.back}>‹ Back</Text></TouchableOpacity>
+        <SpotlightMark size={20} />
         <TouchableOpacity style={styles.addBtn} onPress={() => setFormOpen((v) => !v)}>
           <FontAwesome6 name="plus" size={12} color={colors.black} />
           <Text style={styles.addBtnText}>Add Portfolio Item</Text>

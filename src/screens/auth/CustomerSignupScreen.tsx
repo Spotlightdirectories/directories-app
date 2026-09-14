@@ -21,6 +21,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "CustomerSignup">;
@@ -102,6 +103,12 @@ export default function CustomerSignupScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backText}>‹ Back</Text>
+        </TouchableOpacity>
+        <SpotlightMark size={22} />
+      </View>
       <Text style={styles.title}>Create your account</Text>
       <Text style={styles.subtitle}>Save your favorite vendors and manage your reviews in one place</Text>
 
@@ -158,6 +165,8 @@ export default function CustomerSignupScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.dark, padding: 24, paddingTop: 60 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  backText: { color: colors.primary, fontSize: 15 },
   title: { color: colors.white, fontSize: 24, fontWeight: "700" },
   subtitle: { color: colors.textSecondary, fontSize: 13, marginTop: 4, marginBottom: 20 },
   error: { color: colors.error, fontSize: 13, marginBottom: 4 },

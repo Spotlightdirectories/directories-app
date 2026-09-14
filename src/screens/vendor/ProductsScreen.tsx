@@ -18,6 +18,7 @@ import { supabase } from "../../lib/supabase";
 import { uploadVendorFile } from "../../lib/uploadVendorFile";
 import { openWebPage } from "../../lib/webHandoff";
 import AiDescribeModal from "../../components/AiDescribeModal";
+import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
 type Option = { id: string; name: string };
@@ -410,6 +411,7 @@ export default function ProductsScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.back}>‹ Back</Text></TouchableOpacity>
+        <SpotlightMark size={20} />
         <TouchableOpacity
           style={styles.addBtn}
           onPress={() => {

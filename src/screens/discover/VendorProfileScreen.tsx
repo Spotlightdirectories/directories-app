@@ -22,6 +22,7 @@ import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
 type Route = RouteProp<RootStackParamList, "VendorProfile">;
@@ -375,13 +376,14 @@ export default function VendorProfileScreen() {
   const visiblePortfolio = showAllPortfolio ? portfolioItems : portfolioItems.slice(0, 3);
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       {/* COVER */}
       <View style={styles.cover}>
         {vendor.cover_url ? <Image source={{ uri: vendor.cover_url }} style={styles.coverImg} /> : <View style={styles.coverPlaceholder} />}
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <FontAwesome6 name="arrow-left" size={16} color={colors.white} />
         </TouchableOpacity>
+        <SpotlightMark size={26} style={styles.brandMark} />
       </View>
 
       <View style={styles.content}>
@@ -708,6 +710,7 @@ const styles = StyleSheet.create({
   coverImg: { width: "100%", height: "100%", resizeMode: "contain" },
   coverPlaceholder: { width: "100%", height: "100%", backgroundColor: "#1a1a1a" },
   backBtn: { position: "absolute", top: 44, left: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
+  brandMark: { position: "absolute", top: 44, right: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
 
   content: { padding: 20, paddingTop: 0, marginTop: -35 },
   heroRow: { flexDirection: "row", alignItems: "flex-end" },

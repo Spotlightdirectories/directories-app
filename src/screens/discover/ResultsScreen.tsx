@@ -19,6 +19,7 @@ import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import { logSearch } from "../../lib/logSearch";
 import { applyDistance, formatDistance } from "../../lib/distance";
+import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
 type Route = RouteProp<RootStackParamList, "Results">;
@@ -205,9 +206,12 @@ export default function ResultsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.back}>‹ Back</Text>
-        </TouchableOpacity>
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.back}>‹ Back</Text>
+          </TouchableOpacity>
+          <SpotlightMark size={22} />
+        </View>
         <Text style={styles.title}>
           {audience ? audience : category ? category : "Search Results"}
           {subgroup ? ` › ${subgroup}` : ""}{subcategory ? ` › ${subcategory}` : ""}{subsubcategory ? ` › ${subsubcategory}` : ""}
@@ -256,7 +260,8 @@ export default function ResultsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.dark },
   header: { padding: 16, paddingTop: 50 },
-  back: { color: colors.primary, fontSize: 15, marginBottom: 8 },
+  headerTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  back: { color: colors.primary, fontSize: 15 },
   title: { color: colors.white, fontSize: 20, fontWeight: "700" },
   filterBadge: { color: colors.primary, fontSize: 11, marginTop: 6 },
   searchBar: { flexDirection: "row", paddingHorizontal: 16, marginBottom: 12, gap: 8 },

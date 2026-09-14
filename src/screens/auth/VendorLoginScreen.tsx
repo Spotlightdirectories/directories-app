@@ -23,6 +23,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import { openWebPage } from "../../lib/webHandoff";
+import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "VendorLogin">;
@@ -114,6 +115,10 @@ export default function VendorLoginScreen() {
 
   return (
     <View style={styles.container}>
+      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
+        <Text style={styles.backText}>‹ Back</Text>
+      </TouchableOpacity>
+      <SpotlightMark size={28} style={{ marginBottom: 16 }} />
       <Text style={styles.title}>Vendor Login</Text>
       <Text style={styles.subtitle}>Access your Spotlight dashboard</Text>
 
@@ -158,6 +163,8 @@ export default function VendorLoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.dark, padding: 24, justifyContent: "center" },
+  back: { position: "absolute", top: 50, left: 24 },
+  backText: { color: colors.primary, fontSize: 15 },
   title: { color: colors.white, fontSize: 26, fontWeight: "700" },
   subtitle: { color: colors.textSecondary, fontSize: 14, marginTop: 4, marginBottom: 24 },
   error: { color: colors.error, fontSize: 13, marginBottom: 16 },

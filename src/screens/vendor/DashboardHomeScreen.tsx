@@ -24,6 +24,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import { openWebPage } from "../../lib/webHandoff";
+import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "DashboardHome">;
@@ -168,6 +169,7 @@ export default function DashboardHomeScreen() {
           <Text style={styles.vendorName}>{vendor.name || "—"}</Text>
           <Text style={styles.spotId}>{vendor.spot_id || "—"}</Text>
         </View>
+        <SpotlightMark size={26} />
       </View>
 
       {/* PROFILE STATUS */}
@@ -254,7 +256,7 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 20, paddingTop: 50, paddingBottom: 60 },
   center: { flex: 1, backgroundColor: colors.dark, alignItems: "center", justifyContent: "center" },
   emptyText: { color: colors.textSecondary, fontSize: 13 },
-  header: { marginBottom: 20 },
+  header: { marginBottom: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   vendorName: { color: colors.white, fontSize: 20, fontWeight: "700" },
   spotId: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
 

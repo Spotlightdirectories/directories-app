@@ -24,6 +24,7 @@ import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
 type Route = RouteProp<RootStackParamList, "ProductDetail">;
@@ -173,7 +174,10 @@ export default function ProductDetailScreen() {
       </View>
 
       {/* MEDIA */}
-      <Image source={{ uri: activeImage }} style={styles.mainImage} resizeMode="contain" />
+      <View style={styles.mediaWrap}>
+        <Image source={{ uri: activeImage }} style={styles.mainImage} resizeMode="contain" />
+        <SpotlightMark size={24} style={styles.brandMark} />
+      </View>
       {thumbnails.length > 0 && (
         <View style={styles.thumbnailRow}>
           {thumbnails.map((src, i) => (
@@ -309,6 +313,8 @@ const styles = StyleSheet.create({
   vendorLinkText: { color: colors.white, fontSize: 12, fontWeight: "600" },
 
   mainImage: { width: "100%", height: 300, backgroundColor: "#141414" },
+  mediaWrap: { position: "relative" },
+  brandMark: { position: "absolute", top: 10, right: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
   thumbnailRow: { flexDirection: "row", gap: 8, padding: 16, flexWrap: "wrap" },
   thumbnail: { width: 60, height: 60, borderRadius: 8, borderWidth: 2, borderColor: "transparent" },
   thumbnailActive: { borderColor: colors.primary },

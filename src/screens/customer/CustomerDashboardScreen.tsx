@@ -15,6 +15,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import { resolveActivityItems } from "./RecentlyViewedScreen";
+import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "CustomerDashboard">;
@@ -85,9 +86,12 @@ export default function CustomerDashboardScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-      <TouchableOpacity onPress={() => navigation.navigate("Home")}>
-        <Text style={styles.back}>‹ Back to Home</Text>
-      </TouchableOpacity>
+      <View style={styles.topRow}>
+        <TouchableOpacity onPress={() => navigation.navigate("Home")}>
+          <Text style={styles.back}>‹ Back to Home</Text>
+        </TouchableOpacity>
+        <SpotlightMark size={22} />
+      </View>
       <Text style={styles.name}>{customer.name || "My Account"}</Text>
       <Text style={styles.email}>{customer.email || ""}</Text>
 
@@ -124,7 +128,8 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 20, paddingTop: 50, paddingBottom: 60 },
   center: { flex: 1, backgroundColor: colors.dark, alignItems: "center", justifyContent: "center" },
   emptyText: { color: colors.textSecondary, fontSize: 13 },
-  back: { color: colors.primary, fontSize: 15, marginBottom: 12 },
+  back: { color: colors.primary, fontSize: 15 },
+  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   name: { color: colors.white, fontSize: 20, fontWeight: "700" },
   email: { color: colors.textSecondary, fontSize: 13, marginTop: 2, marginBottom: 20 },
 
