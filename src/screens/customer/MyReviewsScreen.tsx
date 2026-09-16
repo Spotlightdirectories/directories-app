@@ -1,10 +1,17 @@
 // ===============================================================
 // src/screens/customer/MyReviewsScreen.tsx
 //
-// "My Reviews" -- a customer's own past reviews, matched by
-// customer_id (not by name/email string matching, which the vendor-
-// profile review LIST uses for anonymous reviews -- this screen only
-// ever needs the customer's own confirmed reviews).
+// "My Reviews" -- a customer's own past reviews.
+//
+// Bug fix, 2026-09-10 per Cyril: this used to match by customer_id
+// only, which under-counted real reviews (missed any submitted
+// before the reviewer ever logged in, or any other review with the
+// same email but no customer_id set). Web's own note on this exact
+// screen calls it "production's own honest caveat": it matches by
+// reviewer_email, not customer_id, and stays that way until reviews
+// are fully switched over to customer_id in production. Matched here
+// now for consistency -- same query, same result set on both
+// platforms.
 // ===============================================================
 
 import { useState, useCallback } from "react";
@@ -38,13 +45,13 @@ export default function MyReviewsScreen() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setError(true); setLoading(false); return; }
 
-    const { data: customer } = await supabase.from("customers").select("id").eq("auth_user_id", user.id).maybeSingle();
-    if (!customer) { setError(true); setLoading(false); return; }
+    const { data: customer } = await supabase.from("customers").select("email").eq("auth_user_id", user.id).maybeSingle();
+    if (!customer?.email) { setError(true); setLoading(false); return; }
 
     const { data, error: fetchError } = await supabase
       .from("vendor_reviews")
       .select("id, review_text, rating, created_at, vendors(slug, name)")
-      .eq("customer_id", customer.id)
+      .eq("reviewer_email", customer.email)
       .order("created_at", { ascending: false });
 
     if (fetchError) {

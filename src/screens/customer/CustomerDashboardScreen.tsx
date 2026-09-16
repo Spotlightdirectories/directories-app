@@ -23,10 +23,10 @@ type Nav = NativeStackNavigationProp<RootStackParamList, "CustomerDashboard">;
 const CARDS = [
   { key: "Favorites", icon: "heart", label: "Favorite Vendors" },
   { key: "RecentlyViewed", icon: "eye", label: "Recently Viewed" },
-  { key: "MyInquiries", icon: "comments", label: "Inquiries" },
+  { key: "MyInquiries", icon: "comments", label: "My Inquiries" },
   { key: "MyVisitRequests", icon: "shield-heart", label: "Visit Requests" },
-  { key: "MyReviews", icon: "star", label: "Reviews Written" },
-  { key: "SearchHistory", icon: "clock-rotate-left", label: "Recent Searches" },
+  { key: "MyReviews", icon: "star", label: "My Reviews" },
+  { key: "SearchHistory", icon: "clock-rotate-left", label: "My Search History" },
 ] as const;
 
 export default function CustomerDashboardScreen() {

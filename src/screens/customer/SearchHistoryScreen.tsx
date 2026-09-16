@@ -114,7 +114,7 @@ export default function SearchHistoryScreen() {
         <SpotlightMark size={22} />
       </View>
       <Text style={styles.title}>My Search History</Text>
-      <Text style={styles.subtitle}>Your last 50 searches on Spotlight — tap one to search again</Text>
+      <Text style={styles.subtitle}>Your last 50 searches on Spotlight. Tap any of them to search again.</Text>
 
       {error ? (
         <Text style={styles.empty}>Couldn't load your search history right now.</Text>

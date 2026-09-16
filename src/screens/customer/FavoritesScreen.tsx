@@ -109,7 +109,7 @@ export default function FavoritesScreen() {
               onPress={() => navigation.navigate("VendorProfile", { slug: item.slug })}
             >
               <Image
-                source={{ uri: item.logo_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }}
+                source={{ uri: item.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png" }}
                 style={styles.logo}
               />
               <View style={{ flex: 1, marginLeft: 12 }}>

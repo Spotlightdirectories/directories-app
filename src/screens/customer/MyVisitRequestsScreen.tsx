@@ -10,6 +10,7 @@
 
 import { useState, useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { FontAwesome6 } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
@@ -21,9 +22,13 @@ type Nav = NativeStackNavigationProp<RootStackParamList, "MyVisitRequests">;
 
 type VisitRequest = {
   id: string; status: string; location_note: string | null; message: string | null; created_at: string;
-  customer_viewed_at: string | null; vendor_id: string; vendor_name: string; vendor_slug: string;
+  acknowledged_at: string | null; customer_viewed_at: string | null; vendor_id: string; vendor_name: string; vendor_slug: string;
 };
 
+// Status label wording is deliberately kept short here ("Pending"
+// instead of web's "Awaiting vendor confirmation") -- Cyril's call:
+// the app's status pill doesn't have the width web's does, so this
+// one difference stays as-is rather than forcing a wrap.
 function statusMeta(status: string): { label: string; color: string } {
   if (status === "acknowledged") return { label: "Confirmed", color: colors.success };
   if (status === "declined") return { label: "Declined", color: colors.error };
@@ -44,7 +49,7 @@ export default function MyVisitRequestsScreen() {
 
     const { data, error: fetchError } = await supabase
       .from("visit_requests")
-      .select("id, status, location_note, message, created_at, customer_viewed_at, vendor_id, vendors(name, slug)")
+      .select("id, status, location_note, message, created_at, acknowledged_at, customer_viewed_at, vendor_id, vendors(name, slug)")
       .eq("customer_id", customer.id)
       .order("created_at", { ascending: false });
 
@@ -102,9 +107,24 @@ export default function MyVisitRequestsScreen() {
                   </View>
                   {isUnread && <View style={styles.unreadDot} />}
                 </View>
-                {item.location_note && <Text style={styles.detail}>📍 {item.location_note}</Text>}
-                {item.message && <Text style={styles.detail}>{item.message}</Text>}
-                <Text style={styles.date}>{new Date(item.created_at).toLocaleDateString("en-NG", { dateStyle: "medium" })}</Text>
+                {item.location_note && (
+                  <View style={styles.detailRow}>
+                    <FontAwesome6 name="location-dot" size={12} color={colors.textSecondary} />
+                    <Text style={styles.detail}>{item.location_note}</Text>
+                  </View>
+                )}
+                {item.message && (
+                  <View style={styles.detailRow}>
+                    <FontAwesome6 name="comment" size={12} color={colors.textSecondary} />
+                    <Text style={styles.detail}>{item.message}</Text>
+                  </View>
+                )}
+                <Text style={styles.date}>
+                  Requested {new Date(item.created_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })}
+                  {item.status === "acknowledged" && item.acknowledged_at && (
+                    <> · Confirmed {new Date(item.acknowledged_at).toLocaleString("en-NG", { dateStyle: "medium", timeStyle: "short" })}</>
+                  )}
+                </Text>
               </TouchableOpacity>
             );
           }}
@@ -128,6 +148,7 @@ const styles = StyleSheet.create({
   statusPill: { borderWidth: 1, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10 },
   statusText: { fontSize: 11, fontWeight: "700" },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
-  detail: { color: colors.textSecondary, fontSize: 12, marginTop: 6 },
+  detailRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
+  detail: { color: colors.textSecondary, fontSize: 12 },
   date: { color: colors.textSecondary, fontSize: 11, marginTop: 8 },
 });

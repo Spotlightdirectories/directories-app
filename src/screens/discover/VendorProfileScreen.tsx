@@ -389,7 +389,7 @@ export default function VendorProfileScreen() {
       <View style={styles.content}>
         {/* LOGO + NAME */}
         <View style={styles.heroRow}>
-          {vendor.logo_url ? <Image source={{ uri: vendor.logo_url }} style={styles.logo} /> : <View style={styles.logoPlaceholder}><FontAwesome6 name="store" size={24} color={colors.textSecondary} /></View>}
+          {vendor.logo_url ? <Image source={{ uri: vendor.logo_url }} style={styles.logo} /> : <Image source={{ uri: "https://spotlightdirectories.com/images/default-vendor-logo.png" }} style={styles.logo} />}
           <View style={{ flex: 1, marginLeft: 12 }}>
             <View style={styles.nameRow}>
               <Text style={styles.name}>{vendor.name}</Text>
@@ -609,7 +609,7 @@ export default function VendorProfileScreen() {
                   style={styles.similarCard}
                   onPress={() => navigation.navigate("VendorProfile" as never, { slug: b.slug } as never)}
                 >
-                  <Image source={{ uri: b.logo_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.similarLogo} />
+                  <Image source={{ uri: b.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png" }} style={styles.similarLogo} />
                   <View style={styles.similarNameRow}>
                     <Text style={styles.similarName} numberOfLines={1}>{b.name}</Text>
                     <SmallBadge status={b.verification_status} />
