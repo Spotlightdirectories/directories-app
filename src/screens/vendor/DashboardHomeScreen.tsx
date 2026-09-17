@@ -6,6 +6,17 @@
 // this IS what "Dashboard home" means on web, there's no separately
 // named file for it.
 //
+// Corrected 2026-09-10 per Cyril: the top-right spot was originally
+// given to a plain Spotlight mark, but that position is actually
+// meant for the vendor's profile icon -- tapping it on web opens a
+// dropdown with Preferences / Performance / Logout. Rebuilt to
+// match: a real profile icon + dropdown here, with Logout fully
+// functional now and Preferences/Performance as clear placeholders
+// (Settings and Business Insights are still ahead in the build
+// order). The Spotlight mark moved to its own small spot above the
+// header instead of being replaced outright -- every screen still
+// shows it somewhere.
+//
 // Same 8-item profile-completion checklist, same plan/trial card,
 // same email verification flow (same Edge Function, "swift-task").
 //
@@ -17,7 +28,7 @@
 // ===============================================================
 
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Alert } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Alert, Modal } from "react-native";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -54,6 +65,7 @@ export default function DashboardHomeScreen() {
   const [categorizedCount, setCategorizedCount] = useState(0);
   const [verifyState, setVerifyState] = useState<"idle" | "sending" | "sent" | "retry">("idle");
   const [trialText, setTrialText] = useState<{ days: string; ended: boolean } | null>(null);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -127,6 +139,17 @@ export default function DashboardHomeScreen() {
     Alert.alert("Coming soon", "This section is being built next.");
   }
 
+  async function handleLogout() {
+    setProfileMenuOpen(false);
+    await supabase.auth.signOut();
+    navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+  }
+
+  function handlePlaceholder(label: string) {
+    setProfileMenuOpen(false);
+    Alert.alert("Coming soon", `${label} is being built next.`);
+  }
+
   if (loading) {
     return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   }
@@ -164,12 +187,18 @@ export default function DashboardHomeScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <View style={styles.markRow}>
+        <SpotlightMark size={20} />
+      </View>
+
       <View style={styles.header}>
         <View>
           <Text style={styles.vendorName}>{vendor.name || "—"}</Text>
           <Text style={styles.spotId}>{vendor.spot_id || "—"}</Text>
         </View>
-        <SpotlightMark size={26} />
+        <TouchableOpacity style={styles.profileIcon} onPress={() => setProfileMenuOpen(true)}>
+          <FontAwesome6 name="circle-user" size={24} color={colors.white} />
+        </TouchableOpacity>
       </View>
 
       {/* PROFILE STATUS */}
@@ -247,6 +276,26 @@ export default function DashboardHomeScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* PROFILE DROPDOWN — Preferences / Performance / Logout */}
+      <Modal visible={profileMenuOpen} animationType="fade" transparent onRequestClose={() => setProfileMenuOpen(false)}>
+        <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setProfileMenuOpen(false)}>
+          <View style={styles.menuCard}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => handlePlaceholder("Preferences")}>
+              <FontAwesome6 name="sliders" size={14} color={colors.white} />
+              <Text style={styles.menuItemText}>Preferences</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => handlePlaceholder("Performance")}>
+              <FontAwesome6 name="chart-line" size={14} color={colors.white} />
+              <Text style={styles.menuItemText}>Performance</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={handleLogout}>
+              <FontAwesome6 name="right-from-bracket" size={14} color={colors.error} />
+              <Text style={[styles.menuItemText, { color: colors.error }]}>Log Out</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 }
@@ -256,9 +305,11 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 20, paddingTop: 50, paddingBottom: 60 },
   center: { flex: 1, backgroundColor: colors.dark, alignItems: "center", justifyContent: "center" },
   emptyText: { color: colors.textSecondary, fontSize: 13 },
+  markRow: { marginBottom: 16 },
   header: { marginBottom: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   vendorName: { color: colors.white, fontSize: 20, fontWeight: "700" },
   spotId: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  profileIcon: { padding: 4 },
 
   card: { backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, marginBottom: 16 },
   statusTop: { flexDirection: "row", alignItems: "center" },
@@ -292,4 +343,10 @@ const styles = StyleSheet.create({
   tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 30 },
   tile: { width: "31%", backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 16, alignItems: "center" },
   tileLabel: { color: colors.white, fontSize: 11, fontWeight: "600", marginTop: 8, textAlign: "center" },
+
+  menuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "flex-end", paddingTop: 95, paddingRight: 20 },
+  menuCard: { backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 10, width: 180, overflow: "hidden" },
+  menuItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  menuItemLast: { borderBottomWidth: 0 },
+  menuItemText: { color: colors.white, fontSize: 13, fontWeight: "600" },
 });

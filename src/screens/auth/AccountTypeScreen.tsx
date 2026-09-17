@@ -5,6 +5,13 @@
 // Login vs Customer Login as two separate, deliberate choices, not
 // one generic login form. Mirrors the same pattern used throughout
 // the website today (Navbar.tsx's account dropdown).
+//
+// Bug fix, 2026-09-10 per Cyril: Back used to be position:"absolute"
+// inside a justifyContent:"center" container -- the centered content
+// could land on the same coordinates as the absolutely-positioned
+// button, leaving it visually buried and unclickable. Rebuilt with a
+// normal-flow header row above the centered content instead, same
+// pattern already proven correct on the Vendor Core screens.
 // ===============================================================
 
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
@@ -21,30 +28,35 @@ export default function AccountTypeScreen() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => navigation.goBack()}>
-        <Text style={styles.back}>‹ Back</Text>
-      </TouchableOpacity>
-      <SpotlightMark size={30} style={{ marginBottom: 16 }} />
-      <Text style={styles.title}>Log In</Text>
-      <Text style={styles.subtitle}>Choose which kind of account you have</Text>
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.back}>‹ Back</Text>
+        </TouchableOpacity>
+        <SpotlightMark size={22} />
+      </View>
 
-      <TouchableOpacity
-        style={styles.optionCard}
-        onPress={() => navigation.navigate("VendorLogin")}
-      >
-        <Text style={styles.optionIcon}>🏪</Text>
-        <Text style={styles.optionTitle}>Vendor Login</Text>
-        <Text style={styles.optionSubtitle}>Manage your business listing</Text>
-      </TouchableOpacity>
+      <View style={styles.centeredContent}>
+        <Text style={styles.title}>Log In</Text>
+        <Text style={styles.subtitle}>Choose which kind of account you have</Text>
 
-      <TouchableOpacity
-        style={styles.optionCard}
-        onPress={() => navigation.navigate("CustomerLogin")}
-      >
-        <Text style={styles.optionIcon}>👤</Text>
-        <Text style={styles.optionTitle}>Customer Login</Text>
-        <Text style={styles.optionSubtitle}>Favorites, reviews & search history</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.optionCard}
+          onPress={() => navigation.navigate("VendorLogin")}
+        >
+          <Text style={styles.optionIcon}>🏪</Text>
+          <Text style={styles.optionTitle}>Vendor Login</Text>
+          <Text style={styles.optionSubtitle}>Manage your business listing</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.optionCard}
+          onPress={() => navigation.navigate("CustomerLogin")}
+        >
+          <Text style={styles.optionIcon}>👤</Text>
+          <Text style={styles.optionTitle}>Customer Login</Text>
+          <Text style={styles.optionSubtitle}>Favorites, reviews & search history</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -54,14 +66,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.dark,
     padding: 24,
-    justifyContent: "center",
+    paddingTop: 50,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   back: {
     color: colors.primary,
     fontSize: 15,
-    position: "absolute",
-    top: 50,
-    left: 24,
+  },
+  centeredContent: {
+    flex: 1,
+    justifyContent: "center",
   },
   title: {
     color: colors.white,

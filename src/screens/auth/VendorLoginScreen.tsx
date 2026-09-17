@@ -115,55 +115,61 @@ export default function VendorLoginScreen() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
-        <Text style={styles.backText}>‹ Back</Text>
-      </TouchableOpacity>
-      <SpotlightMark size={28} style={{ marginBottom: 16 }} />
-      <Text style={styles.title}>Vendor Login</Text>
-      <Text style={styles.subtitle}>Access your Spotlight dashboard</Text>
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      <Text style={styles.label}>Email address</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="you@business.com"
-        placeholderTextColor={colors.textSecondary}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
-
-      <Text style={styles.label}>Password</Text>
-      <View style={styles.passwordRow}>
-        <TextInput
-          style={styles.passwordInput}
-          placeholder="Your password"
-          placeholderTextColor={colors.textSecondary}
-          secureTextEntry={!showPassword}
-          value={password}
-          onChangeText={setPassword}
-        />
-        <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword((v) => !v)}>
-          <FontAwesome6 name={showPassword ? "eye-slash" : "eye"} size={16} color={colors.textSecondary} />
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backText}>‹ Back</Text>
         </TouchableOpacity>
+        <SpotlightMark size={22} />
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-        {loading ? <ActivityIndicator color={colors.black} /> : <Text style={styles.buttonText}>Log In</Text>}
-      </TouchableOpacity>
+      <View style={styles.centeredContent}>
+        <Text style={styles.title}>Vendor Login</Text>
+        <Text style={styles.subtitle}>Access your Spotlight dashboard</Text>
 
-      <TouchableOpacity onPress={() => openWebPage("/getlisted")}>
-        <Text style={styles.link}>Don't have a vendor account? Get listed</Text>
-      </TouchableOpacity>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <Text style={styles.label}>Email address</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="you@business.com"
+          placeholderTextColor={colors.textSecondary}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+
+        <Text style={styles.label}>Password</Text>
+        <View style={styles.passwordRow}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Your password"
+            placeholderTextColor={colors.textSecondary}
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+          />
+          <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword((v) => !v)}>
+            <FontAwesome6 name={showPassword ? "eye-slash" : "eye"} size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+          {loading ? <ActivityIndicator color={colors.black} /> : <Text style={styles.buttonText}>Log In</Text>}
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => openWebPage("/getlisted")}>
+          <Text style={styles.link}>Don't have a vendor account? Get listed</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.dark, padding: 24, justifyContent: "center" },
-  back: { position: "absolute", top: 50, left: 24 },
+  container: { flex: 1, backgroundColor: colors.dark, padding: 24, paddingTop: 50 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  centeredContent: { flex: 1, justifyContent: "center" },
   backText: { color: colors.primary, fontSize: 15 },
   title: { color: colors.white, fontSize: 26, fontWeight: "700" },
   subtitle: { color: colors.textSecondary, fontSize: 14, marginTop: 4, marginBottom: 24 },

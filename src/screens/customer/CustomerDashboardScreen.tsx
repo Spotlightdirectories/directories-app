@@ -139,6 +139,6 @@ const styles = StyleSheet.create({
 
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   card: { width: "47%", backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, alignItems: "flex-start" },
-  cardCount: { color: colors.white, fontSize: 22, fontWeight: "800", marginTop: 10 },
+  cardCount: { color: colors.primary, fontSize: 22, fontWeight: "800", marginTop: 10 },
   cardLabel: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
 });
