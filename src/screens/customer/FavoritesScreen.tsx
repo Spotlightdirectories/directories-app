@@ -156,6 +156,6 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   name: { color: colors.white, fontSize: 14, fontWeight: "600", flexShrink: 1 },
   category: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
-  rating: { color: colors.textSecondary, fontSize: 11, marginTop: 4 },
+  rating: { color: colors.primary, fontSize: 11, marginTop: 4, fontWeight: "600" },
   removeBtn: { padding: 8 },
 });

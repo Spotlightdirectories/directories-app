@@ -28,7 +28,7 @@
 // ===============================================================
 
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Alert, Modal } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Alert, Modal, Image } from "react-native";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -44,7 +44,7 @@ type Vendor = {
   id: string; name: string | null; email: string | null; spot_id: string | null;
   plan_tier: string | null; trial_started_at: string | null; email_verified: boolean | null;
   address: string | null; description: string | null; whatsapp: string | null; telephone: string | null;
-  latitude: number | null; longitude: number | null;
+  latitude: number | null; longitude: number | null; logo_url: string | null;
 };
 
 const NAV_TILES = [
@@ -197,7 +197,10 @@ export default function DashboardHomeScreen() {
           <Text style={styles.spotId}>{vendor.spot_id || "—"}</Text>
         </View>
         <TouchableOpacity style={styles.profileIcon} onPress={() => setProfileMenuOpen(true)}>
-          <FontAwesome6 name="circle-user" size={24} color={colors.white} />
+          <Image
+            source={{ uri: vendor.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png" }}
+            style={styles.profileImage}
+          />
         </TouchableOpacity>
       </View>
 
@@ -310,6 +313,7 @@ const styles = StyleSheet.create({
   vendorName: { color: colors.white, fontSize: 20, fontWeight: "700" },
   spotId: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   profileIcon: { padding: 4 },
+  profileImage: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.border },
 
   card: { backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, marginBottom: 16 },
   statusTop: { flexDirection: "row", alignItems: "center" },
