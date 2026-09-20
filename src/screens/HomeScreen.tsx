@@ -47,6 +47,7 @@ type OpenPill = "artisan" | "goods" | "professional" | null;
 export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
   const [keyword, setKeyword] = useState("");
+  const [emptySearchError, setEmptySearchError] = useState(false);
   const [searchType, setSearchType] = useState<SearchTypeTab>("all");
   const [connected, setConnected] = useState<boolean | null>(null);
 
@@ -152,6 +153,21 @@ export default function HomeScreen() {
       userLng: userLng ?? undefined,
       radius: distanceEnabled ? radius : undefined,
     });
+  }
+
+  // Bug fix, 2026-09-10 per Cyril: tapping Search with an empty
+  // keyword used to run anyway -- an empty string becomes null in
+  // the actual query, so it matched EVERYTHING (products, services,
+  // vendors, sponsored, all of it) with no filter at all. Now
+  // requires an actual keyword, same as web's matching fix.
+  function handleKeywordSearch() {
+    const trimmed = keyword.trim();
+    if (!trimmed) {
+      setEmptySearchError(true);
+      return;
+    }
+    setEmptySearchError(false);
+    goToResults({ keyword: trimmed });
   }
 
   function togglePill(pill: OpenPill) {
@@ -299,14 +315,17 @@ export default function HomeScreen() {
           placeholder="What are you looking for?"
           placeholderTextColor={colors.textSecondary}
           value={keyword}
-          onChangeText={setKeyword}
-          onSubmitEditing={() => goToResults({ keyword })}
+          onChangeText={(text) => { setKeyword(text); setEmptySearchError(false); }}
+          onSubmitEditing={handleKeywordSearch}
           returnKeyType="search"
         />
-        <TouchableOpacity style={styles.searchButton} onPress={() => goToResults({ keyword })}>
+        <TouchableOpacity style={styles.searchButton} onPress={handleKeywordSearch}>
           <Text style={styles.searchButtonText}>Search</Text>
         </TouchableOpacity>
       </View>
+      {emptySearchError && (
+        <Text style={styles.emptySearchError}>Please type a keyword to search.</Text>
+      )}
 
       <View style={styles.tabRow}>
         {TYPE_TABS.map((tab) => (
@@ -463,6 +482,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.white },
   searchButton: { backgroundColor: colors.primary, borderRadius: 8, paddingHorizontal: 18, justifyContent: "center" },
   searchButtonText: { color: colors.black, fontWeight: "700" },
+  emptySearchError: { color: colors.error, fontSize: 12, fontWeight: "600", marginHorizontal: 20, marginTop: -4, marginBottom: 10 },
 
   tabRow: { flexDirection: "row", paddingHorizontal: 20, gap: 8, marginBottom: 12 },
   tab: { flex: 1, backgroundColor: "#141414", borderRadius: 999, paddingVertical: 8, alignItems: "center" },
