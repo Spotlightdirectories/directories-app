@@ -162,11 +162,12 @@ export default function ProductDetailScreen() {
   const specEntries = attributeLabels.map((def) => ({ label: def.label, value: product.attributes?.[def.key] || "" })).filter((e) => e.value);
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.back}>‹ Back</Text>
         </TouchableOpacity>
+        <SpotlightMark size={18} />
         <TouchableOpacity style={styles.vendorLink} onPress={() => navigation.navigate("VendorProfile", { slug: vendorSlug })}>
           <FontAwesome6 name="store" size={12} color={colors.white} />
           <Text style={styles.vendorLinkText}>View Vendor Profile</Text>
@@ -174,10 +175,7 @@ export default function ProductDetailScreen() {
       </View>
 
       {/* MEDIA */}
-      <View style={styles.mediaWrap}>
-        <Image source={{ uri: activeImage }} style={styles.mainImage} resizeMode="contain" />
-        <SpotlightMark size={24} style={styles.brandMark} />
-      </View>
+      <Image source={{ uri: activeImage }} style={styles.mainImage} resizeMode="contain" />
       {thumbnails.length > 0 && (
         <View style={styles.thumbnailRow}>
           {thumbnails.map((src, i) => (
@@ -313,8 +311,6 @@ const styles = StyleSheet.create({
   vendorLinkText: { color: colors.white, fontSize: 12, fontWeight: "600" },
 
   mainImage: { width: "100%", height: 300, backgroundColor: "#141414" },
-  mediaWrap: { position: "relative" },
-  brandMark: { position: "absolute", top: 10, right: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
   thumbnailRow: { flexDirection: "row", gap: 8, padding: 16, flexWrap: "wrap" },
   thumbnail: { width: 60, height: 60, borderRadius: 8, borderWidth: 2, borderColor: "transparent" },
   thumbnailActive: { borderColor: colors.primary },

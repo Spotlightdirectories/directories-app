@@ -377,13 +377,16 @@ export default function VendorProfileScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backText}>‹ Back</Text>
+        </TouchableOpacity>
+        <SpotlightMark size={20} />
+      </View>
+
       {/* COVER */}
       <View style={styles.cover}>
         {vendor.cover_url ? <Image source={{ uri: vendor.cover_url }} style={styles.coverImg} /> : <View style={styles.coverPlaceholder} />}
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <FontAwesome6 name="arrow-left" size={16} color={colors.white} />
-        </TouchableOpacity>
-        <SpotlightMark size={26} style={styles.brandMark} />
       </View>
 
       <View style={styles.content}>
@@ -709,8 +712,8 @@ const styles = StyleSheet.create({
   cover: { height: 160, width: "100%", backgroundColor: "#1a1a1a", overflow: "hidden", alignItems: "center", justifyContent: "center" },
   coverImg: { width: "100%", height: "100%", resizeMode: "contain" },
   coverPlaceholder: { width: "100%", height: "100%", backgroundColor: "#1a1a1a" },
-  backBtn: { position: "absolute", top: 44, left: 16, width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
-  brandMark: { position: "absolute", top: 44, right: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.3)" },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingTop: 50, paddingBottom: 10 },
+  backText: { color: colors.primary, fontSize: 15 },
 
   content: { padding: 20, paddingTop: 0, marginTop: -35 },
   heroRow: { flexDirection: "row", alignItems: "flex-end" },
