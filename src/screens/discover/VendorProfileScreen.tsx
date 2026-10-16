@@ -321,6 +321,17 @@ export default function VendorProfileScreen() {
     setVisitSubmitted(true);
   }
 
+  // "Leave Review" on a Results card lands here with openReview set --
+  // open the review form once the vendor has loaded (not for owners).
+  const [autoReviewDone, setAutoReviewDone] = useState(false);
+  useEffect(() => {
+    if (route.params?.openReview && vendor && !isOwner && !autoReviewDone) {
+      setAutoReviewDone(true);
+      openReviewModal();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendor, isOwner]);
+
   async function openReviewModal() {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -502,17 +513,26 @@ export default function VendorProfileScreen() {
                       <Text style={styles.portfolioTitle}>{item.title}</Text>
                       {item.completed_on && <Text style={styles.portfolioDate}>Completed: {formatCompletedDate(item.completed_on)}</Text>}
                       {displayName && (
-                        <Text style={styles.portfolioDate}>
-                          {displayName}{rec?.recommender_company ? ` · ${rec.recommender_company}` : ""}
-                          {rec ? "  ✓ Verified" : ""}
-                        </Text>
+                        <View style={styles.portfolioNameRow}>
+                          <Text style={styles.portfolioDate}>
+                            {displayName}{rec?.recommender_company ? ` · ${rec.recommender_company}` : ""}
+                          </Text>
+                          {rec && (
+                            <View style={styles.verifiedPill}>
+                              <FontAwesome6 name="circle-check" size={10} color={colors.success} solid />
+                              <Text style={styles.verifiedPillText}>Verified</Text>
+                            </View>
+                          )}
+                        </View>
                       )}
                     </View>
                   </View>
                   {item.description && <Text style={styles.portfolioDescription}>{item.description}</Text>}
                   {rec && (
                     <View style={styles.portfolioQuote}>
-                      <Text style={styles.portfolioQuoteLabel}>Client recommendation</Text>
+                      <Text style={styles.portfolioQuoteLabel}>
+                        <FontAwesome6 name="quote-left" size={10} color={colors.primary} />  Client recommendation
+                      </Text>
                       <Text style={styles.portfolioQuoteText}>&ldquo;{rec.message}&rdquo;</Text>
                     </View>
                   )}
@@ -749,6 +769,9 @@ const styles = StyleSheet.create({
   portfolioAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
   portfolioAvatarText: { color: colors.black, fontWeight: "700", fontSize: 13 },
   portfolioTitle: { color: colors.white, fontSize: 14, fontWeight: "600" },
+  portfolioNameRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", marginTop: 2 },
+  verifiedPill: { flexDirection: "row", alignItems: "center", gap: 4, marginLeft: 8, borderWidth: 1, borderColor: colors.success, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 },
+  verifiedPillText: { color: colors.success, fontSize: 10, fontWeight: "700" },
   portfolioDate: { color: colors.textSecondary, fontSize: 11, marginTop: 2 },
   portfolioDescription: { color: colors.textSecondary, fontSize: 13, marginTop: 8, lineHeight: 19 },
   portfolioQuote: { backgroundColor: "#0d0d0d", borderRadius: 8, padding: 10, marginTop: 10 },

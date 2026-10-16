@@ -81,14 +81,21 @@ export default function CustomerDashboardScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
+  // Replaces the old "Back to Home" link, which just landed on the
+  // login screen (there is no home to go back to once signed in).
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    navigation.reset({ index: 0, routes: [{ name: "Home" }] });
+  }
+
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   if (!customer) return <View style={styles.center}><Text style={styles.emptyText}>Customer account not found.</Text></View>;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       <View style={styles.topRow}>
-        <TouchableOpacity onPress={() => navigation.navigate("Home")}>
-          <Text style={styles.back}>‹ Back to Home</Text>
+        <TouchableOpacity onPress={handleLogout}>
+          <Text style={styles.back}>Log Out</Text>
         </TouchableOpacity>
         <SpotlightMark size={22} />
       </View>

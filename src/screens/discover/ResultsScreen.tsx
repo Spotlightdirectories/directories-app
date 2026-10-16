@@ -9,14 +9,16 @@
 // using the SAME type/state/lga/verified/distance it arrived with.
 // ===============================================================
 
-import { useEffect, useState } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, Image, Modal, Switch } from "react-native";
+import * as Location from "expo-location";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { nigeriaData } from "../../lib/nigeria-data";
 import { logSearch } from "../../lib/logSearch";
 import { applyDistance, formatDistance } from "../../lib/distance";
 import SpotlightMark from "../../components/SpotlightMark";
@@ -25,7 +27,12 @@ import { colors } from "../../theme/colors";
 type Route = RouteProp<RootStackParamList, "Results">;
 type Nav = NativeStackNavigationProp<RootStackParamList, "Results">;
 
+const DEFAULT_LOGO = "https://spotlightdirectories.com/images/default-vendor-logo.png";
+const STATES = Object.keys(nigeriaData);
+const RADIUS_OPTIONS = [1, 5, 10, 20];
+
 type ResultItem = {
+  image?: string | null;
   key: string;
   name: string;
   vendorName: string;
@@ -47,8 +54,28 @@ export default function ResultsScreen() {
   const {
     audience, subgroup, category, subcategory, subsubcategory,
     keyword: initialKeyword, searchType = "all",
-    state, lga, verifiedOnly, distanceEnabled, userLat, userLng, radius = 5,
+    state: initState, lga: initLga, verifiedOnly: initVerified, distanceEnabled: initDistance,
+    userLat: initLat, userLng: initLng, radius: initRadius = 5,
   } = route.params || {};
+
+  // Filters now live here as local state (initialised from Home) so
+  // "More Filters" can be changed without going back -- same as web.
+  const [state, setState] = useState<string | undefined>(initState);
+  const [lga, setLga] = useState<string | undefined>(initLga);
+  const [verifiedOnly, setVerifiedOnly] = useState<boolean>(!!initVerified);
+  const [distanceEnabled, setDistanceEnabled] = useState<boolean>(!!initDistance);
+  const [userLat, setUserLat] = useState<number | null>(initLat ?? null);
+  const [userLng, setUserLng] = useState<number | null>(initLng ?? null);
+  const [radius, setRadius] = useState<number>(initRadius);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [statePickerOpen, setStatePickerOpen] = useState(false);
+  const [lgaPickerOpen, setLgaPickerOpen] = useState(false);
+  const [stateSearch, setStateSearch] = useState("");
+  const [lgaSearch, setLgaSearch] = useState("");
+  const [locationStatus, setLocationStatus] = useState<"idle" | "detecting" | "ready" | "denied">(initLat != null ? "ready" : "idle");
+  const [filtersVersion, setFiltersVersion] = useState(0);
+  const [emptyKeywordError, setEmptyKeywordError] = useState(false);
+  const firstRun = useRef(true);
 
   const [keyword, setKeyword] = useState(initialKeyword || "");
   const [loading, setLoading] = useState(true);
@@ -69,7 +96,7 @@ export default function ResultsScreen() {
     const vendorIds = [...new Set(branchData.map((b: any) => b.vendor_id))];
     const { data: branchVendors } = await supabase
       .from("vendors")
-      .select("id, slug, name, category, subcategory, verification_status, is_sponsored, account_status")
+      .select("id, slug, name, category, subcategory, verification_status, is_sponsored, account_status, logo_url")
       .in("id", vendorIds)
       .eq("account_status", "active");
 
@@ -85,6 +112,7 @@ export default function ResultsScreen() {
           vendorName: v.name,
           vendorSlug: v.slug,
           price: null,
+          image: v.logo_url || null,
           kind: "vendor" as const,
           lat: b.latitude ? Number(b.latitude) : null,
           lng: b.longitude ? Number(b.longitude) : null,
@@ -132,18 +160,21 @@ export default function ResultsScreen() {
     let productItems: ResultItem[] = (productsRes.data || []).map((p: any) => ({
       key: `product-${p.id}`, name: p.product_name, vendorName: p.vendor_name, vendorSlug: p.vendor_slug,
       itemSlug: p.slug,
+      image: p.primary_image_url || null,
       price: p.price, kind: "product" as const, lat: p.vendor_latitude ?? null, lng: p.vendor_longitude ?? null,
       sponsored: !!p.vendor_is_sponsored,
     }));
     let serviceItems: ResultItem[] = (servicesRes.data || []).map((s: any) => ({
       key: `service-${s.id}`, name: s.service_name, vendorName: s.vendor_name, vendorSlug: s.vendor_slug,
       itemSlug: s.slug,
+      image: s.representative_image_url || s.vendor_logo_url || null,
       price: s.starting_price, kind: "service" as const, lat: s.vendor_latitude ?? null, lng: s.vendor_longitude ?? null,
       sponsored: !!s.vendor_is_sponsored,
     }));
     let vendorItems: ResultItem[] = [
       ...(vendorsRes.data || []).map((v: any) => ({
         key: `vendor-${v.id}`, name: v.name, vendorName: v.name, vendorSlug: v.slug,
+        image: v.logo_url || null,
         price: null, kind: "vendor" as const, lat: v.latitude ?? null, lng: v.longitude ?? null,
         sponsored: !!v.is_sponsored,
       })),
@@ -165,9 +196,48 @@ export default function ResultsScreen() {
   }
 
   useEffect(() => {
-    runSearch(initialKeyword);
+    if (firstRun.current) {
+      firstRun.current = false;
+      runSearch(initialKeyword);
+      return;
+    }
+    runSearch(keyword.trim() || undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [filtersVersion]);
+
+  // Same rule as Home/web: a blank keyword is not a search -- unless
+  // the user arrived by browsing a category (then refine is optional).
+  function handleRefine() {
+    const trimmed = keyword.trim();
+    const browsing = !!(audience || category || subgroup || subcategory);
+    if (!trimmed && !browsing) {
+      setEmptyKeywordError(true);
+      return;
+    }
+    setEmptyKeywordError(false);
+    runSearch(trimmed);
+  }
+
+  async function toggleDistance(value: boolean) {
+    setDistanceEnabled(value);
+    if (value && userLat == null) {
+      setLocationStatus("detecting");
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") { setLocationStatus("denied"); setDistanceEnabled(false); return; }
+      const pos = await Location.getCurrentPositionAsync({});
+      setUserLat(pos.coords.latitude);
+      setUserLng(pos.coords.longitude);
+      setLocationStatus("ready");
+    }
+  }
+
+  function clearFilters() {
+    setState(undefined); setLga(undefined); setVerifiedOnly(false); setDistanceEnabled(false);
+  }
+
+  const lgaOptions = state ? nigeriaData[state] || [] : [];
+  const filteredStates = STATES.filter((x) => x.toLowerCase().includes(stateSearch.toLowerCase()));
+  const filteredLgas = lgaOptions.filter((x) => x.toLowerCase().includes(lgaSearch.toLowerCase()));
 
   const sponsoredItems = [...products, ...services, ...vendors].filter((i) => i.sponsored);
   const showProducts = searchType === "all" || searchType === "product";
@@ -186,19 +256,38 @@ export default function ResultsScreen() {
         navigation.navigate("VendorProfile", { slug: item.vendorSlug });
       }
     }
+    const thumb = item.image || DEFAULT_LOGO;
     return (
       <TouchableOpacity key={item.key} style={styles.card} onPress={handlePress}>
-        {item.sponsored && <Text style={styles.sponsoredTag}>SPONSORED</Text>}
-        <Text style={styles.itemName}>{item.branchName || item.name}</Text>
-        {item.kind !== "vendor" && <Text style={styles.itemVendor}>By {item.vendorName}</Text>}
-        {item.branchAddress && <Text style={styles.itemVendor}>{item.branchAddress}</Text>}
-        {item.price != null && <Text style={styles.itemPrice}>₦{Number(item.price).toLocaleString()}</Text>}
-        {distanceEnabled && item.distanceKm != null && (
-          <View style={styles.distanceRow}>
-            <FontAwesome6 name="location-dot" size={11} color={colors.primary} />
-            <Text style={styles.itemDistance}>{formatDistance(item.distanceKm)}</Text>
+        <View style={styles.cardRow}>
+          <Image source={{ uri: thumb }} style={item.kind === "vendor" ? styles.thumbLogo : styles.thumb} resizeMode="cover" />
+          <View style={{ flex: 1 }}>
+            {item.sponsored && <Text style={styles.sponsoredTag}>SPONSORED</Text>}
+            <Text style={styles.itemName}>{item.branchName || item.name}</Text>
+            {item.kind !== "vendor" && <Text style={styles.itemVendor}>By {item.vendorName}</Text>}
+            {item.branchAddress && <Text style={styles.itemVendor}>{item.branchAddress}</Text>}
+            {item.price != null && (
+              <Text style={styles.itemPrice}>
+                {item.kind === "service" ? <Text style={styles.itemFrom}>From </Text> : null}
+                ₦{Number(item.price).toLocaleString()}
+              </Text>
+            )}
+            {distanceEnabled && item.distanceKm != null && (
+              <View style={styles.distanceRow}>
+                <FontAwesome6 name="location-dot" size={11} color={colors.primary} />
+                <Text style={styles.itemDistance}>{formatDistance(item.distanceKm)}</Text>
+              </View>
+            )}
           </View>
-        )}
+        </View>
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.reviewBtn} onPress={() => navigation.navigate("VendorProfile", { slug: item.vendorSlug, openReview: true })}>
+            <Text style={styles.reviewBtnText}>Leave Review</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.profileBtn} onPress={() => navigation.navigate("VendorProfile", { slug: item.vendorSlug })}>
+            <Text style={styles.profileBtnText}>View Profile</Text>
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
     );
   }
@@ -216,7 +305,7 @@ export default function ResultsScreen() {
           {audience ? audience : category ? category : "Search Results"}
           {subgroup ? ` › ${subgroup}` : ""}{subcategory ? ` › ${subcategory}` : ""}{subsubcategory ? ` › ${subsubcategory}` : ""}
         </Text>
-        {activeFilterCount > 0 && <Text style={styles.filterBadge}>Filters ({activeFilterCount}) active from Home</Text>}
+        {activeFilterCount > 0 && <Text style={styles.filterBadge}>Filters ({activeFilterCount}) active</Text>}
       </View>
 
       <View style={styles.searchBar}>
@@ -225,14 +314,104 @@ export default function ResultsScreen() {
           placeholder="Refine keyword…"
           placeholderTextColor={colors.textSecondary}
           value={keyword}
-          onChangeText={setKeyword}
-          onSubmitEditing={() => runSearch(keyword)}
+          onChangeText={(t) => { setKeyword(t); setEmptyKeywordError(false); }}
+          onSubmitEditing={handleRefine}
           returnKeyType="search"
         />
-        <TouchableOpacity style={styles.searchButton} onPress={() => runSearch(keyword)}>
+        <TouchableOpacity style={styles.searchButton} onPress={handleRefine}>
           <Text style={styles.searchButtonText}>Search</Text>
         </TouchableOpacity>
       </View>
+      {emptyKeywordError && <Text style={styles.emptyError}>Please type a keyword to search.</Text>}
+
+      <TouchableOpacity style={styles.filterToggle} onPress={() => setFiltersOpen(true)}>
+        <FontAwesome6 name="sliders" size={13} color={colors.primary} />
+        <Text style={styles.filterToggleText}>More Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}</Text>
+      </TouchableOpacity>
+
+      <Modal visible={filtersOpen} animationType="slide" transparent onRequestClose={() => setFiltersOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>More Filters</Text>
+            <Text style={styles.filterLabel}>State</Text>
+            <TouchableOpacity style={styles.filterField} onPress={() => setStatePickerOpen(true)}>
+              <Text style={styles.filterFieldText}>{state || "Any state"}</Text>
+            </TouchableOpacity>
+            {state && (
+              <>
+                <Text style={styles.filterLabel}>LGA</Text>
+                <TouchableOpacity style={styles.filterField} onPress={() => setLgaPickerOpen(true)}>
+                  <Text style={styles.filterFieldText}>{lga || "Any LGA"}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            <View style={styles.switchRow}>
+              <Text style={styles.filterLabel}>Verified vendors only</Text>
+              <Switch value={verifiedOnly} onValueChange={setVerifiedOnly} trackColor={{ true: colors.primary, false: colors.border }} />
+            </View>
+            <View style={styles.switchRow}>
+              <Text style={styles.filterLabel}>Search near me</Text>
+              <Switch value={distanceEnabled} onValueChange={toggleDistance} trackColor={{ true: colors.primary, false: colors.border }} />
+            </View>
+            {locationStatus === "detecting" && <Text style={styles.locationText}>Detecting your location…</Text>}
+            {locationStatus === "denied" && <Text style={styles.locationTextWarn}>Location permission denied. Enable it in your phone's Settings.</Text>}
+            {distanceEnabled && locationStatus === "ready" && (
+              <>
+                <Text style={styles.filterLabel}>Within</Text>
+                <View style={styles.radiusRow}>
+                  {RADIUS_OPTIONS.map((r) => (
+                    <TouchableOpacity key={r} style={[styles.radiusChip, radius === r && styles.radiusChipActive]} onPress={() => setRadius(r)}>
+                      <Text style={[styles.radiusChipText, radius === r && styles.radiusChipTextActive]}>{r}km</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+            <View style={styles.modalButtonRow}>
+              <TouchableOpacity style={styles.clearButton} onPress={clearFilters}>
+                <Text style={styles.clearButtonText}>Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.applyButton} onPress={() => { setFiltersOpen(false); setFiltersVersion((v) => v + 1); }}>
+                <Text style={styles.applyButtonText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={statePickerOpen} animationType="slide" transparent onRequestClose={() => setStatePickerOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerCard}>
+            <Text style={styles.modalTitle}>Select State</Text>
+            <TextInput style={styles.pickerSearchInput} placeholder="Search states..." placeholderTextColor={colors.textSecondary} value={stateSearch} onChangeText={setStateSearch} autoFocus />
+            <FlatList data={filteredStates} keyExtractor={(x) => x} renderItem={({ item }) => (
+              <TouchableOpacity style={styles.pickerItem} onPress={() => { setState(item); setLga(undefined); setStatePickerOpen(false); setStateSearch(""); }}>
+                <Text style={styles.pickerItemText}>{item}</Text>
+              </TouchableOpacity>
+            )} />
+            <TouchableOpacity style={styles.closeButton} onPress={() => { setStatePickerOpen(false); setStateSearch(""); }}>
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={lgaPickerOpen} animationType="slide" transparent onRequestClose={() => setLgaPickerOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.pickerCard}>
+            <Text style={styles.modalTitle}>Select LGA</Text>
+            <TextInput style={styles.pickerSearchInput} placeholder="Search LGAs..." placeholderTextColor={colors.textSecondary} value={lgaSearch} onChangeText={setLgaSearch} autoFocus />
+            <FlatList data={filteredLgas} keyExtractor={(x) => x} renderItem={({ item }) => (
+              <TouchableOpacity style={styles.pickerItem} onPress={() => { setLga(item); setLgaPickerOpen(false); setLgaSearch(""); }}>
+                <Text style={styles.pickerItemText}>{item}</Text>
+              </TouchableOpacity>
+            )} />
+            <TouchableOpacity style={styles.closeButton} onPress={() => { setLgaPickerOpen(false); setLgaSearch(""); }}>
+              <Text style={styles.closeButtonText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {loading ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
@@ -277,4 +456,43 @@ const styles = StyleSheet.create({
   itemPrice: { color: colors.success, fontSize: 13, marginTop: 4, fontWeight: "600" },
   itemDistance: { color: colors.primary, fontSize: 11, fontWeight: "700", marginLeft: 4 },
   distanceRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
+  itemFrom: { color: colors.textSecondary, fontSize: 10, fontWeight: "600" },
+
+  cardRow: { flexDirection: "row", gap: 12 },
+  thumb: { width: 76, height: 76, borderRadius: 10, backgroundColor: "#0d0d0d" },
+  thumbLogo: { width: 56, height: 56, borderRadius: 12, backgroundColor: "#0d0d0d" },
+  actionRow: { flexDirection: "row", gap: 8, marginTop: 12 },
+  reviewBtn: { flex: 1, borderWidth: 1, borderColor: colors.primary, borderRadius: 8, paddingVertical: 8, alignItems: "center" },
+  reviewBtnText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  profileBtn: { flex: 1, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 8, alignItems: "center" },
+  profileBtnText: { color: colors.black, fontSize: 12, fontWeight: "700" },
+  emptyError: { color: colors.error, fontSize: 12, fontWeight: "600", marginHorizontal: 16, marginTop: -6, marginBottom: 10 },
+
+  filterToggle: { flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 16, marginBottom: 8, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 10, justifyContent: "center" },
+  filterToggleText: { color: colors.primary, fontSize: 13, fontWeight: "600" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  modalCard: { backgroundColor: colors.dark, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 40 },
+  modalTitle: { color: colors.white, fontSize: 18, fontWeight: "700", marginBottom: 16 },
+  filterLabel: { color: colors.textSecondary, fontSize: 13, marginBottom: 6, marginTop: 12 },
+  filterField: { backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12 },
+  filterFieldText: { color: colors.white, fontSize: 14 },
+  switchRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 20 },
+  locationText: { color: colors.textSecondary, fontSize: 12, marginTop: 8 },
+  locationTextWarn: { color: colors.warning, fontSize: 12, marginTop: 8 },
+  radiusRow: { flexDirection: "row", gap: 8 },
+  radiusChip: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 10, alignItems: "center" },
+  radiusChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  radiusChipText: { color: colors.textSecondary, fontSize: 13, fontWeight: "600" },
+  radiusChipTextActive: { color: colors.black },
+  modalButtonRow: { flexDirection: "row", gap: 10, marginTop: 28 },
+  clearButton: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 14, alignItems: "center" },
+  clearButtonText: { color: colors.textSecondary, fontWeight: "600" },
+  applyButton: { flex: 2, backgroundColor: colors.primary, borderRadius: 8, padding: 14, alignItems: "center" },
+  applyButtonText: { color: colors.black, fontWeight: "700" },
+  pickerCard: { backgroundColor: colors.dark, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, maxHeight: "75%" },
+  pickerSearchInput: { backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 12, color: colors.white, fontSize: 14, marginBottom: 12 },
+  pickerItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  pickerItemText: { color: colors.white, fontSize: 15 },
+  closeButton: { marginTop: 16, padding: 14, alignItems: "center", borderWidth: 1, borderColor: colors.border, borderRadius: 8 },
+  closeButtonText: { color: colors.primary, fontWeight: "600" },
 });

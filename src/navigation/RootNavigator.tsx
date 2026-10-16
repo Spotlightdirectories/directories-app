@@ -55,7 +55,7 @@ export type RootStackParamList = {
     userLng?: number;
     radius?: number;
   };
-  VendorProfile: { slug: string };
+  VendorProfile: { slug: string; openReview?: boolean };
   ProductDetail: { vendorSlug: string; productSlug: string };
   ServiceDetail: { vendorSlug: string; serviceSlug: string };
   DashboardHome: undefined;
