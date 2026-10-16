@@ -91,10 +91,21 @@ export default function ProductDetailScreen() {
       if (data.category_id) {
         const { data: defs } = await supabase
           .from("product_attributes")
-          .select("key,label")
+          .select("key,label,subcategory_id")
           .eq("category_id", data.category_id)
           .order("display_order", { ascending: true });
-        setAttributeLabels(defs || []);
+        // Bug fix: a category can now hold both a category-wide field and a
+        // subcategory-specific override of the same key (e.g. PPE "Size").
+        // Fetching them all produced two "Size" rows -> duplicate key warning.
+        // Keep one row per key; the subcategory-specific one wins, and rows
+        // for other subcategories are ignored (same rule as the vendor form).
+        const byKey = new Map<string, { key: string; label: string; subcategory_id: string | null }>();
+        for (const row of (defs || []) as { key: string; label: string; subcategory_id: string | null }[]) {
+          if (row.subcategory_id !== null && row.subcategory_id !== data.subcategory_id) continue;
+          const existing = byKey.get(row.key);
+          if (!existing || row.subcategory_id !== null) byKey.set(row.key, row);
+        }
+        setAttributeLabels(Array.from(byKey.values()));
       }
 
       try {

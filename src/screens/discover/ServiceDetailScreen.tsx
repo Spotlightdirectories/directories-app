@@ -241,7 +241,6 @@ export default function ServiceDetailScreen() {
       )}
 
       <View style={[styles.info, !hasImage && styles.infoCentered]}>
-        {!hasImage && <SpotlightMark size={28} style={{ marginBottom: 14 }} />}
         <Text style={[styles.name, !hasImage && styles.textCenter]}>{service.service_name}</Text>
 
         {service.starting_price != null && (
