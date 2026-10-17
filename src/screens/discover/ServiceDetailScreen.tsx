@@ -25,6 +25,7 @@ import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import VerifiedBadge from "../../components/VerifiedBadge";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
@@ -47,9 +48,7 @@ type RelatedService = {
 };
 
 function SmallBadge({ status }: { status: string }) {
-  if (status === "blue") return <FontAwesome6 name="circle-check" size={12} color="#1877F2" />;
-  if (status === "gray") return <FontAwesome6 name="circle-check" size={12} color={colors.textSecondary} />;
-  return null;
+  return <VerifiedBadge status={status} size={14} />;
 }
 
 async function getViewingCustomerId(): Promise<string | null> {

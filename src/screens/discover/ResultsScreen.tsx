@@ -18,10 +18,12 @@ import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import VerifiedBadge from "../../components/VerifiedBadge";
 import { nigeriaData } from "../../lib/nigeria-data";
 import { logSearch } from "../../lib/logSearch";
 import { applyDistance, formatDistance } from "../../lib/distance";
 import SpotlightMark from "../../components/SpotlightMark";
+import AccountMenu from "../../components/AccountMenu";
 import { colors } from "../../theme/colors";
 
 type Route = RouteProp<RootStackParamList, "Results">;
@@ -46,6 +48,12 @@ type ResultItem = {
   sponsored: boolean;
   branchName?: string | null;
   branchAddress?: string | null;
+  // Vendor-card details (same fields the web card shows)
+  verification?: string | null;
+  rating?: number;
+  reviews?: number;
+  location?: string | null;
+  categoryLabel?: string | null;
 };
 
 export default function ResultsScreen() {
@@ -96,7 +104,7 @@ export default function ResultsScreen() {
     const vendorIds = [...new Set(branchData.map((b: any) => b.vendor_id))];
     const { data: branchVendors } = await supabase
       .from("vendors")
-      .select("id, slug, name, category, subcategory, verification_status, is_sponsored, account_status, logo_url")
+      .select("id, slug, name, category, subcategory, verification_status, is_sponsored, account_status, logo_url, average_rating, reviews_count")
       .in("id", vendorIds)
       .eq("account_status", "active");
 
@@ -119,6 +127,11 @@ export default function ResultsScreen() {
           sponsored: !!v.is_sponsored,
           branchName: b.branch_name,
           branchAddress: b.address,
+          verification: v.verification_status || null,
+          rating: Number(v.average_rating) || 0,
+          reviews: Number(v.reviews_count) || 0,
+          location: [b.lga, b.state].filter(Boolean).join(", ") || null,
+          categoryLabel: v.subcategory || v.category || null,
           _category: v.category,
           _verification: v.verification_status,
         };
@@ -177,13 +190,48 @@ export default function ResultsScreen() {
         image: v.logo_url || null,
         price: null, kind: "vendor" as const, lat: v.latitude ?? null, lng: v.longitude ?? null,
         sponsored: !!v.is_sponsored,
+        verification: v.verification_status || null,
+        rating: Number(v.average_rating) || 0,
+        reviews: Number(v.reviews_count) || 0,
+        location: [v.lga, v.state].filter(Boolean).join(", ") || null,
+        categoryLabel: v.subcategory || v.category || null,
       })),
       ...branchItems,
     ];
 
+    // Task R: category line from what each vendor actually lists (same as web + Favorites).
+    if (vendorItems.length > 0) {
+      try {
+        const ids = [...new Set(
+          vendorItems.map((i) => (i.key.startsWith("branch-") ? null : i.key.replace("vendor-", "")))
+            .filter(Boolean) as string[]
+        )];
+        const branchVendorSlugs = vendorItems.filter((i) => i.key.startsWith("branch-")).map((i) => i.vendorSlug);
+        let slugToId: Record<string, string> = {};
+        if (branchVendorSlugs.length > 0) {
+          const { data: vr } = await supabase.from("vendors").select("id, slug").in("slug", branchVendorSlugs);
+          (vr || []).forEach((r: any) => { slugToId[r.slug] = r.id; });
+        }
+        const allIds = [...new Set([...ids, ...Object.values(slugToId)])];
+        if (allIds.length > 0) {
+          const { data: catRows } = await supabase.rpc("get_vendor_display_categories", { p_vendor_ids: allIds });
+          const catMap: Record<string, any> = {};
+          (catRows || []).forEach((r: any) => { catMap[r.vendor_id] = r; });
+          vendorItems = vendorItems.map((i) => {
+            const vid = i.key.startsWith("branch-") ? slugToId[i.vendorSlug] : i.key.replace("vendor-", "");
+            const r = vid ? catMap[vid] : null;
+            if (!r || !r.categories || r.categories.length === 0) return i;
+            const shown = r.categories.slice(0, 2).join(" • ");
+            const more = (r.total_count || r.categories.length) - 2;
+            return { ...i, categoryLabel: more > 0 ? `${shown} • +${more} more` : shown };
+          });
+        }
+      } catch { /* non-fatal: keeps stored subcategory */ }
+    }
+
     const lat = userLat ?? null;
     const lng = userLng ?? null;
-    productItems = applyDistance(productItems, (i) => i.lat, (i) => i.lng, lat, lng, radius, !!distanceEnabled);
+    productItems =applyDistance(productItems, (i) => i.lat, (i) => i.lng, lat, lng, radius, !!distanceEnabled);
     serviceItems = applyDistance(serviceItems, (i) => i.lat, (i) => i.lng, lat, lng, radius, !!distanceEnabled);
     vendorItems = applyDistance(vendorItems, (i) => i.lat, (i) => i.lng, lat, lng, radius, !!distanceEnabled);
 
@@ -263,9 +311,28 @@ export default function ResultsScreen() {
           <Image source={{ uri: thumb }} style={item.kind === "vendor" ? styles.thumbLogo : styles.thumb} resizeMode="cover" />
           <View style={{ flex: 1 }}>
             {item.sponsored && <Text style={styles.sponsoredTag}>SPONSORED</Text>}
-            <Text style={styles.itemName}>{item.branchName || item.name}</Text>
-            {item.kind !== "vendor" && <Text style={styles.itemVendor}>By {item.vendorName}</Text>}
-            {item.branchAddress && <Text style={styles.itemVendor}>{item.branchAddress}</Text>}
+            {item.kind === "vendor" ? (
+              <>
+                <View style={styles.vendorNameRow}>
+                  <Text style={[styles.itemName, { flexShrink: 1 }]}>{item.branchName || item.name}</Text>
+                  <VerifiedBadge status={item.verification} size={18} />
+                </View>
+                <View style={styles.ratingRow}>
+                  <FontAwesome6 name="star" size={11} color={colors.primary} solid />
+                  <Text style={styles.ratingText}>{Number(item.rating || 0).toFixed(1)}</Text>
+                  <Text style={styles.ratingCount}>({item.reviews || 0})</Text>
+                </View>
+                {(item.branchAddress || item.location) ? (
+                  <Text style={styles.itemVendor}>{item.branchAddress || item.location}</Text>
+                ) : null}
+                {item.categoryLabel ? <Text style={styles.vendorCategory} numberOfLines={2}>{item.categoryLabel}</Text> : null}
+              </>
+            ) : (
+              <>
+                <Text style={styles.itemName}>{item.branchName || item.name}</Text>
+                <Text style={styles.itemVendor}>By {item.vendorName}</Text>
+              </>
+            )}
             {item.price != null && (
               <Text style={styles.itemPrice}>
                 {item.kind === "service" ? <Text style={styles.itemFrom}>From </Text> : null}
@@ -300,6 +367,7 @@ export default function ResultsScreen() {
             <Text style={styles.back}>‹ Back</Text>
           </TouchableOpacity>
           <SpotlightMark size={22} />
+          <AccountMenu />
         </View>
         <Text style={styles.title}>
           {audience ? audience : category ? category : "Search Results"}
@@ -453,6 +521,11 @@ const styles = StyleSheet.create({
   card: { backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 14, marginBottom: 10 },
   itemName: { color: colors.white, fontSize: 15, fontWeight: "600" },
   itemVendor: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
+  vendorNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  ratingRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  ratingText: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  ratingCount: { color: colors.textSecondary, fontSize: 11 },
+  vendorCategory: { color: colors.textSecondary, fontSize: 12, fontWeight: "700", marginTop: 4 },
   itemPrice: { color: colors.success, fontSize: 13, marginTop: 4, fontWeight: "600" },
   itemDistance: { color: colors.primary, fontSize: 11, fontWeight: "700", marginLeft: 4 },
   distanceRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },

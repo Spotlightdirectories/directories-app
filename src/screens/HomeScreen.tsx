@@ -27,6 +27,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 import { supabase } from "../lib/supabase";
+import AccountMenu from "../components/AccountMenu";
 import { nigeriaData } from "../lib/nigeria-data";
 import { colors } from "../theme/colors";
 
@@ -230,9 +231,7 @@ export default function HomeScreen() {
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={styles.topRow}>
         <View style={{ flex: 1 }} />
-        <TouchableOpacity onPress={() => navigation.navigate("AccountType")}>
-          <Text style={styles.loginLink}>Log In</Text>
-        </TouchableOpacity>
+        <AccountMenu />
       </View>
 
       <Image

@@ -8,13 +8,15 @@
 // ===============================================================
 
 import { useEffect, useState, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Image } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Alert } from "react-native";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import SpotlightMark from "../../components/SpotlightMark";
+import AccountMenu from "../../components/AccountMenu";
+import VerifiedBadge from "../../components/VerifiedBadge";
 import { colors } from "../../theme/colors";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "Favorites">;
@@ -25,17 +27,14 @@ type FavoriteVendor = {
   slug: string;
   name: string;
   logo_url: string | null;
-  category: string;
-  subcategory: string;
+  categoryLine: string;
   verification_status: string;
   average_rating: number;
   reviews_count: number;
 };
 
 function Badge({ status }: { status: string }) {
-  if (status === "blue") return <FontAwesome6 name="circle-check" size={13} color="#1877F2" />;
-  if (status === "gray") return <FontAwesome6 name="circle-check" size={13} color={colors.textSecondary} />;
-  return null;
+  return <VerifiedBadge status={status} size={16} />;
 }
 
 export default function FavoritesScreen() {
@@ -64,7 +63,21 @@ export default function FavoritesScreen() {
     } else {
       const list: FavoriteVendor[] = (data || [])
         .filter((row: any) => row.vendors)
-        .map((row: any) => ({ favoriteId: row.id, ...row.vendors }));
+        .map((row: any) => ({ favoriteId: row.id, ...row.vendors, categoryLine: "" }));
+
+      // Categories come from what each vendor actually lists (same logic as web).
+      if (list.length > 0) {
+        const { data: catRows } = await supabase.rpc("get_vendor_display_categories", { p_vendor_ids: list.map((f) => f.id) });
+        const catMap: Record<string, { categories: string[]; total_count: number }> = {};
+        (catRows || []).forEach((r: any) => { catMap[r.vendor_id] = r; });
+        list.forEach((f) => {
+          const r = catMap[f.id];
+          if (!r || !r.categories || r.categories.length === 0) return;
+          const shown = r.categories.slice(0, 2).join(" • ");
+          const more = (r.total_count || r.categories.length) - 2;
+          f.categoryLine = more > 0 ? `${shown} • +${more} more` : shown;
+        });
+      }
       setFavorites(list);
     }
     setLoading(false);
@@ -74,9 +87,21 @@ export default function FavoritesScreen() {
   // favorite from a vendor profile and coming back here stays in sync.
   useFocusEffect(useCallback(() => { load(); }, []));
 
-  async function removeFavorite(favoriteId: string, vendorId: string) {
+  async function doRemove(favoriteId: string) {
     setFavorites((prev) => prev.filter((f) => f.favoriteId !== favoriteId));
     await supabase.from("customer_favorites").delete().eq("id", favoriteId);
+  }
+
+  // Ask first, so an accidental tap never silently removes a vendor.
+  function removeFavorite(favoriteId: string, vendorName: string) {
+    Alert.alert(
+      "Remove from favorites?",
+      `${vendorName} will be removed from your favorites. You can save it again from the vendor's profile.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Remove", style: "destructive", onPress: () => doRemove(favoriteId) },
+      ]
+    );
   }
 
   if (loading) {
@@ -90,6 +115,7 @@ export default function FavoritesScreen() {
           <Text style={styles.back}>‹ Back</Text>
         </TouchableOpacity>
         <SpotlightMark size={22} />
+        <AccountMenu />
       </View>
       <Text style={styles.title}>My Favorites</Text>
       <Text style={styles.subtitle}>Vendors you've saved</Text>
@@ -117,14 +143,15 @@ export default function FavoritesScreen() {
                   <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
                   <Badge status={item.verification_status} />
                 </View>
-                <Text style={styles.category}>{item.category}{item.subcategory ? ` • ${item.subcategory}` : ""}</Text>
+                {item.categoryLine ? <Text style={styles.category} numberOfLines={2}>{item.categoryLine}</Text> : null}
                 <Text style={styles.rating}>★ {Number(item.average_rating || 0).toFixed(1)} ({item.reviews_count || 0})</Text>
               </View>
               <TouchableOpacity
                 style={styles.removeBtn}
-                onPress={() => removeFavorite(item.favoriteId, item.id)}
+                onPress={() => removeFavorite(item.favoriteId, item.name)}
               >
-                <FontAwesome6 name="heart" size={18} color={colors.primary} solid />
+                <FontAwesome6 name="heart-crack" size={13} color={colors.textSecondary} />
+                <Text style={styles.removeBtnText}>Remove</Text>
               </TouchableOpacity>
             </TouchableOpacity>
           )}
@@ -157,5 +184,6 @@ const styles = StyleSheet.create({
   name: { color: colors.white, fontSize: 14, fontWeight: "600", flexShrink: 1 },
   category: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   rating: { color: colors.primary, fontSize: 11, marginTop: 4, fontWeight: "600" },
-  removeBtn: { padding: 8 },
+  removeBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginLeft: 10, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, borderColor: colors.border },
+  removeBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: "600" },
 });

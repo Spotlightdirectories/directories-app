@@ -16,6 +16,7 @@ import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import { resolveActivityItems } from "./RecentlyViewedScreen";
 import SpotlightMark from "../../components/SpotlightMark";
+import AccountMenu from "../../components/AccountMenu";
 import { colors } from "../../theme/colors";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "CustomerDashboard">;
@@ -98,6 +99,7 @@ export default function CustomerDashboardScreen() {
           <Text style={styles.back}>Log Out</Text>
         </TouchableOpacity>
         <SpotlightMark size={22} />
+        <AccountMenu />
       </View>
       <Text style={styles.name}>{customer.name || "My Account"}</Text>
       <Text style={styles.email}>{customer.email || ""}</Text>

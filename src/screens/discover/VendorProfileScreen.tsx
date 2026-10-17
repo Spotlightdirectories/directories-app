@@ -23,6 +23,8 @@ import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import SpotlightMark from "../../components/SpotlightMark";
+import AccountMenu from "../../components/AccountMenu";
+import VerifiedBadge from "../../components/VerifiedBadge";
 import { colors } from "../../theme/colors";
 
 type Route = RouteProp<RootStackParamList, "VendorProfile">;
@@ -88,15 +90,11 @@ const SOCIAL_ICON_MAP: Record<string, string> = {
 };
 
 function Badge({ status }: { status: string }) {
-  if (status === "blue") return <FontAwesome6 name="circle-check" size={16} color="#1877F2" />;
-  if (status === "gray") return <FontAwesome6 name="circle-check" size={16} color={colors.textSecondary} />;
-  return null;
+  return <VerifiedBadge status={status} size={20} />;
 }
 
 function SmallBadge({ status }: { status: string }) {
-  if (status === "blue") return <FontAwesome6 name="circle-check" size={12} color="#1877F2" />;
-  if (status === "gray") return <FontAwesome6 name="circle-check" size={12} color={colors.textSecondary} />;
-  return null;
+  return <VerifiedBadge status={status} size={14} />;
 }
 
 function stripHtml(html: string): string {
@@ -124,6 +122,14 @@ function formatCompletedDate(value: string | null | undefined): string | null {
   if (!match) return value;
   const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function getRelativeDate(dateStr: string): string {
+  const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
+  if (days <= 0) return "Today";
+  if (days < 7) return `${days} day${days > 1 ? "s" : ""} ago`;
+  const weeks = Math.min(3, Math.floor(days / 7));
+  return `${weeks} week${weeks > 1 ? "s" : ""} ago`;
 }
 
 function initialsOf(text: string): string {
@@ -393,6 +399,7 @@ export default function VendorProfileScreen() {
           <Text style={styles.backText}>‹ Back</Text>
         </TouchableOpacity>
         <SpotlightMark size={20} />
+        <AccountMenu />
       </View>
 
       {/* COVER */}
@@ -476,7 +483,7 @@ export default function VendorProfileScreen() {
             <View style={styles.contactRow}>
               <FontAwesome6 name="clock" size={13} color={colors.textSecondary} />
               <View style={{ marginLeft: 8 }}>
-                <Text style={styles.contactText}><Text style={styles.hoursHighlight}>Opens</Text> {formatTime(vendor.open_time)} • <Text style={styles.hoursHighlight}>Closes</Text> {formatTime(vendor.close_time)}</Text>
+                <Text style={[styles.contactText, styles.hoursText]}><Text style={styles.hoursHighlight}>Opens</Text> {formatTime(vendor.open_time)} • <Text style={styles.hoursHighlight}>Closes</Text> {formatTime(vendor.close_time)}</Text>
                 {vendor.business_days && <Text style={styles.contactSubtext}>{vendor.business_days.split(",").join(" • ")}</Text>}
               </View>
             </View>
@@ -611,8 +618,19 @@ export default function VendorProfileScreen() {
           reviews.map((r, i) => (
             <View key={i} style={styles.reviewCard}>
               <View style={styles.reviewTop}>
-                <Text style={styles.reviewerName}>{r.reviewer_name || "Anonymous"}</Text>
-                {r.customer_id && <Text style={styles.verifiedTag}>✓ Verified</Text>}
+                <View style={styles.reviewAvatar}>
+                  <Text style={styles.reviewAvatarText}>{initialsOf(r.reviewer_name || "")}</Text>
+                </View>
+                <View style={styles.reviewMeta}>
+                  <Text style={styles.reviewerName}>{r.reviewer_name || "Anonymous Reviewer"}</Text>
+                  {r.customer_id ? (
+                    <View style={styles.reviewVerifiedPill}>
+                      <FontAwesome6 name="circle-check" size={10} color={colors.success} solid />
+                      <Text style={styles.reviewVerifiedText}>Verified Customer</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text style={styles.reviewDate}>{getRelativeDate(r.created_at)}</Text>
               </View>
               <Text style={styles.reviewText}>{r.review_text}</Text>
             </View>
@@ -760,6 +778,7 @@ const styles = StyleSheet.create({
   aboutText: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, marginTop: 10 },
   contactRow: { flexDirection: "row", alignItems: "center", marginTop: 14 },
   contactText: { color: colors.white, fontSize: 13 },
+  hoursText: { fontWeight: "600" },
   hoursHighlight: { color: colors.primary, fontWeight: "700" },
   contactSubtext: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
 
@@ -798,7 +817,13 @@ const styles = StyleSheet.create({
   rateBtnText: { color: colors.black, fontWeight: "700", fontSize: 12 },
 
   reviewCard: { backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 14, marginBottom: 10 },
-  reviewTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  reviewTop: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  reviewAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginRight: 10 },
+  reviewAvatarText: { color: "#000", fontWeight: "700", fontSize: 13 },
+  reviewMeta: { flex: 1 },
+  reviewVerifiedPill: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", marginTop: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10, backgroundColor: "rgba(34,197,94,0.15)" },
+  reviewVerifiedText: { color: colors.success, fontSize: 10, fontWeight: "600", marginLeft: 4 },
+  reviewDate: { color: colors.textSecondary, fontSize: 11, marginLeft: 8 },
   reviewerName: { color: colors.white, fontWeight: "600", fontSize: 14 },
   verifiedTag: { color: colors.primary, fontSize: 11, fontWeight: "600" },
   reviewText: { color: colors.textSecondary, fontSize: 13, marginTop: 6 },

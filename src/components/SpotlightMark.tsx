@@ -12,18 +12,34 @@
 // width scaled to whitelogo3.png's actual proportions).
 // ===============================================================
 
-import { Image, StyleSheet, ImageStyle, StyleProp } from "react-native";
+import { Image, StyleSheet, ImageStyle, StyleProp, TouchableOpacity } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 
-export default function SpotlightMark({ size = 20, style }: { size?: number; style?: StyleProp<ImageStyle> }) {
+// Tapping the logo takes the user to the Home screen from any page
+// (mirrors the web, where the logo links to "/"). Pass linkHome={false}
+// on any screen where the logo should stay a plain, non-tappable image.
+export default function SpotlightMark({ size = 20, style, linkHome = true }: { size?: number; style?: StyleProp<ImageStyle>; linkHome?: boolean }) {
+  const navigation = useNavigation<any>();
   // whitelogo3.png's native proportions are roughly wide (icon +
   // wordmark side by side) -- width scales off the given size to
   // keep it from looking squashed at small sizes.
   const width = size * 4.2;
-  return (
+  const image = (
     <Image
       source={{ uri: "https://spotlightdirectories.com/images/whitelogo3.png" }}
       style={[{ width, height: size }, style]}
       resizeMode="contain"
     />
+  );
+  if (!linkHome) return image;
+  return (
+    <TouchableOpacity
+      accessibilityRole="link"
+      accessibilityLabel="Go to Spotlight home"
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      onPress={() => navigation.reset({ index: 0, routes: [{ name: "Home" }] })}
+    >
+      {image}
+    </TouchableOpacity>
   );
 }
