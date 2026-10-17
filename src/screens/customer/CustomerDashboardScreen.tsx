@@ -26,6 +26,7 @@ const CARDS = [
   { key: "RecentlyViewed", icon: "eye", label: "Recently Viewed" },
   { key: "MyInquiries", icon: "comments", label: "My Inquiries" },
   { key: "MyVisitRequests", icon: "shield-heart", label: "Visit Requests" },
+  { key: "MyQuoteRequests", icon: "file-invoice-dollar", label: "Quote Requests" },
   { key: "MyReviews", icon: "star", label: "My Reviews" },
   { key: "SearchHistory", icon: "clock-rotate-left", label: "My Search History" },
 ] as const;
@@ -35,8 +36,9 @@ export default function CustomerDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [customer, setCustomer] = useState<{ id: string; name: string | null; email: string | null } | null>(null);
   const [hasVendorAccount, setHasVendorAccount] = useState(false);
-  const [counts, setCounts] = useState({ favorites: 0, viewed: 0, inquiries: 0, visits: 0, reviews: 0, searches: 0 });
+  const [counts, setCounts] = useState({ favorites: 0, viewed: 0, inquiries: 0, visits: 0, quotes: 0, reviews: 0, searches: 0 });
   const [unreadVisitReplies, setUnreadVisitReplies] = useState(0);
+  const [unreadQuotes, setUnreadQuotes] = useState(0);
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -54,7 +56,7 @@ export default function CustomerDashboardScreen() {
     // why they didn't match web at all (web's "count" is the length of
     // the same resolved/deduped/capped list the actual tab displays,
     // not a database count). Matched to web's exact logic now.
-    const [{ count: favCount }, { data: viewEvents }, { data: inquiryEvents }, { count: visitCount }, { count: reviewCount }, { data: searchRows }, { data: visitRows }] = await Promise.all([
+    const [{ count: favCount }, { data: viewEvents }, { data: inquiryEvents }, { count: visitCount }, { count: reviewCount }, { data: searchRows }, { data: visitRows }, { data: quoteRows }] = await Promise.all([
       supabase.from("customer_favorites").select("*", { count: "exact", head: true }).eq("customer_id", c.id),
       supabase.from("analytics_events").select("product_id, service_id, created_at").eq("customer_id", c.id).in("event_type", ["product_view", "service_view"]).order("created_at", { ascending: false }).limit(50),
       supabase.from("analytics_events").select("product_id, service_id, created_at").eq("customer_id", c.id).in("event_type", ["whatsapp_click", "phone_click"]).order("created_at", { ascending: false }).limit(50),
@@ -62,6 +64,7 @@ export default function CustomerDashboardScreen() {
       supabase.from("vendor_reviews").select("*", { count: "exact", head: true }).eq("reviewer_email", c.email || ""),
       supabase.from("search_logs").select("id").eq("customer_id", c.id).order("created_at", { ascending: false }).limit(50),
       supabase.from("visit_requests").select("id, status, customer_viewed_at").eq("customer_id", c.id),
+      supabase.from("quote_requests").select("id, status, customer_viewed_at").eq("customer_id", c.id),
     ]);
 
     const [viewedItems, inquiryItems] = await Promise.all([
@@ -71,11 +74,12 @@ export default function CustomerDashboardScreen() {
 
     setCounts({
       favorites: favCount || 0, viewed: viewedItems.length, inquiries: inquiryItems.length,
-      visits: visitCount || 0, reviews: reviewCount || 0, searches: (searchRows || []).length,
+      visits: visitCount || 0, quotes: (quoteRows || []).length, reviews: reviewCount || 0, searches: (searchRows || []).length,
     });
 
     const unread = (visitRows || []).filter((v) => (v.status === "acknowledged" || v.status === "declined") && !v.customer_viewed_at);
     setUnreadVisitReplies(unread.length);
+    setUnreadQuotes((quoteRows || []).filter((q) => q.status === "quoted" && !q.customer_viewed_at).length);
 
     setLoading(false);
   }
@@ -119,10 +123,11 @@ export default function CustomerDashboardScreen() {
           <TouchableOpacity key={card.key} style={styles.card} onPress={() => navigation.navigate(card.key as any)}>
             <FontAwesome6 name={card.icon as any} size={18} color={colors.primary} />
             <Text style={styles.cardCount}>
-              {card.key === "MyVisitRequests" ? counts.visits : card.key === "Favorites" ? counts.favorites
+              {card.key === "MyVisitRequests" ? counts.visits : card.key === "MyQuoteRequests" ? counts.quotes : card.key === "Favorites" ? counts.favorites
                 : card.key === "RecentlyViewed" ? counts.viewed : card.key === "MyInquiries" ? counts.inquiries
                 : card.key === "MyReviews" ? counts.reviews : counts.searches}
               {card.key === "MyVisitRequests" && unreadVisitReplies > 0 ? ` (${unreadVisitReplies} new)` : ""}
+              {card.key === "MyQuoteRequests" && unreadQuotes > 0 ? ` (${unreadQuotes} new)` : ""}
             </Text>
             <Text style={styles.cardLabel}>{card.label}</Text>
           </TouchableOpacity>

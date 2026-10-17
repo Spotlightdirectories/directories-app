@@ -27,10 +27,10 @@
 // turn comes, not silently faked here.
 // ===============================================================
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Alert, Modal, Image } from "react-native";
 import { FontAwesome6 } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
@@ -52,7 +52,7 @@ const NAV_TILES = [
   { key: "services", label: "Services", icon: "briefcase" },
   { key: "portfolio", label: "Portfolio", icon: "layer-group" },
   { key: "profile", label: "Edit Profile", icon: "user" },
-  { key: "visitRequests", label: "Visit Requests", icon: "shield-heart" },
+  { key: "visitRequests", label: "Visit & Quote Requests", icon: "shield-heart" },
   { key: "settings", label: "Settings", icon: "gear" },
 ] as const;
 
@@ -66,6 +66,7 @@ export default function DashboardHomeScreen() {
   const [verifyState, setVerifyState] = useState<"idle" | "sending" | "sent" | "retry">("idle");
   const [trialText, setTrialText] = useState<{ days: string; ended: boolean } | null>(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [unreadRequests, setUnreadRequests] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -110,6 +111,22 @@ export default function DashboardHomeScreen() {
     return () => clearInterval(interval);
   }, [vendor]);
 
+  // Unread count on the Visit & Quote Requests tile; refreshes every
+  // time this screen comes back into focus (e.g. after opening the inbox).
+  useFocusEffect(useCallback(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: v } = await supabase.from("vendors").select("id").eq("auth_user_id", user.id).maybeSingle();
+      if (!v) return;
+      const [{ count: vc }, { count: qc }] = await Promise.all([
+        supabase.from("visit_requests").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).is("vendor_viewed_at", null),
+        supabase.from("quote_requests").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).is("vendor_viewed_at", null),
+      ]);
+      setUnreadRequests((vc || 0) + (qc || 0));
+    })();
+  }, []));
+
   async function handleVerifyEmail() {
     if (!vendor) return;
     setVerifyState("sending");
@@ -134,6 +151,10 @@ export default function DashboardHomeScreen() {
     }
     if (key === "portfolio") {
       navigation.navigate("Portfolio");
+      return;
+    }
+    if (key === "visitRequests") {
+      navigation.navigate("VisitRequestsReceived");
       return;
     }
     Alert.alert("Coming soon", "This section is being built next.");
@@ -276,6 +297,9 @@ export default function DashboardHomeScreen() {
           <TouchableOpacity key={tile.key} style={styles.tile} onPress={() => handleTilePress(tile.key)}>
             <FontAwesome6 name={tile.icon as any} size={20} color={colors.white} />
             <Text style={styles.tileLabel}>{tile.label}</Text>
+            {tile.key === "visitRequests" && unreadRequests > 0 && (
+              <View style={styles.tileBadge}><Text style={styles.tileBadgeText}>{unreadRequests}</Text></View>
+            )}
           </TouchableOpacity>
         ))}
       </View>
@@ -346,6 +370,8 @@ const styles = StyleSheet.create({
 
   tileGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 30 },
   tile: { width: "31%", backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 16, alignItems: "center" },
+  tileBadge: { position: "absolute", top: 6, right: 8, backgroundColor: colors.primary, borderRadius: 999, minWidth: 18, height: 18, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  tileBadgeText: { color: "#000", fontSize: 10, fontWeight: "800" },
   tileLabel: { color: colors.white, fontSize: 11, fontWeight: "600", marginTop: 8, textAlign: "center" },
 
   menuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "flex-end", paddingTop: 95, paddingRight: 20 },

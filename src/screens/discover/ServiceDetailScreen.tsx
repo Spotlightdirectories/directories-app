@@ -27,13 +27,14 @@ import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import VerifiedBadge from "../../components/VerifiedBadge";
 import SpotlightMark from "../../components/SpotlightMark";
+import QuoteRequestModal, { QuoteCustomer } from "../../components/QuoteRequestModal";
 import { colors } from "../../theme/colors";
 
 type Route = RouteProp<RootStackParamList, "ServiceDetail">;
 type Nav = NativeStackNavigationProp<RootStackParamList, "ServiceDetail">;
 
 type ServiceData = {
-  id: string; slug: string; vendor_id: string; service_name: string; starting_price: number | null;
+  id: string; slug: string; vendor_id: string; service_name: string; starting_price: number | null; pricing_mode?: string | null;
   short_description: string | null; attributes: Record<string, string> | null; category_id: string | null;
   representative_image_url: string | null; secondary_image_url: string | null; gallery_image_urls: string[] | null;
   vendors: {
@@ -78,6 +79,10 @@ export default function ServiceDetailScreen() {
   const [visitMessage, setVisitMessage] = useState("");
   const [submittingVisit, setSubmittingVisit] = useState(false);
   const [visitSubmitted, setVisitSubmitted] = useState(false);
+
+  // Request a Quote (Task U, Step 1)
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [quoteCustomer, setQuoteCustomer] = useState<QuoteCustomer | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -168,6 +173,15 @@ export default function ServiceDetailScreen() {
     setVisitModalOpen(true);
   }
 
+  async function openQuoteModal() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { navigation.navigate("CustomerLogin"); return; }
+    const { data: customer } = await supabase.from("customers").select("id, name, phone, email").eq("auth_user_id", user.id).maybeSingle();
+    if (!customer) { navigation.navigate("CustomerLogin"); return; }
+    setQuoteCustomer(customer);
+    setQuoteOpen(true);
+  }
+
   async function submitVisit() {
     if (!service || !visitCustomer) return;
     if (!visitPhone.trim()) { alert("Please add a phone number so the vendor can confirm it's really you."); return; }
@@ -242,7 +256,12 @@ export default function ServiceDetailScreen() {
       <View style={[styles.info, !hasImage && styles.infoCentered]}>
         <Text style={[styles.name, !hasImage && styles.textCenter]}>{service.service_name}</Text>
 
-        {service.starting_price != null && (
+        {service.pricing_mode === "quote" && (
+          <Text style={[styles.priceLabel, !hasImage && styles.textCenter]}>
+            <Text style={styles.price}>Contact for a quote</Text>
+          </Text>
+        )}
+        {service.pricing_mode !== "quote" && service.starting_price != null && (
           <Text style={[styles.priceLabel, !hasImage && styles.textCenter]}>
             Starting From <Text style={styles.price}>₦{Number(service.starting_price).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
           </Text>
@@ -313,6 +332,10 @@ export default function ServiceDetailScreen() {
             <FontAwesome6 name="shield-heart" size={13} color={colors.primary} />
             <Text style={[styles.actionBtnText, { color: colors.primary }]}>Request a Visit</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionBtn, styles.quoteBtn]} onPress={openQuoteModal}>
+            <FontAwesome6 name="file-invoice-dollar" size={13} color={colors.black} />
+            <Text style={[styles.actionBtnText, { color: colors.black }]}>Request a Quote</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -354,6 +377,16 @@ export default function ServiceDetailScreen() {
           />
         </View>
       )}
+
+      <QuoteRequestModal
+        visible={quoteOpen}
+        onClose={() => setQuoteOpen(false)}
+        customer={quoteCustomer}
+        vendorId={service.vendor_id}
+        vendorName={vendor?.name || ""}
+        serviceId={service.id}
+        serviceName={service.service_name}
+      />
 
       {/* VISIT REQUEST MODAL */}
       <Modal visible={visitModalOpen} animationType="slide" transparent onRequestClose={() => setVisitModalOpen(false)}>
@@ -435,6 +468,7 @@ const styles = StyleSheet.create({
   whatsappBtn: { backgroundColor: "#25D366" },
   callBtn: { backgroundColor: colors.dark, borderWidth: 1, borderColor: colors.border },
   shareBtn: { backgroundColor: colors.primary },
+  quoteBtn: { backgroundColor: colors.primary, minWidth: "100%" },
   visitBtn: { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.primary },
 
   relatedSection: { marginTop: 16, paddingLeft: 20 },

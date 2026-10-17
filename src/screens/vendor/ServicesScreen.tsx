@@ -39,7 +39,7 @@ type AttributeValues = Record<string, string>;
 const GALLERY_SLOTS = 2;
 
 type VendorService = {
-  id: string; service_name: string; short_description: string | null; starting_price: number | null;
+  id: string; service_name: string; short_description: string | null; starting_price: number | null; pricing_mode?: string | null;
   representative_image_url: string | null; secondary_image_url: string | null; gallery_image_urls: string[] | null;
   category_id: string | null; subcategory_id: string | null; sub_subcategory_id: string | null;
   attributes: AttributeValues | null; moderation_status: string | null;
@@ -47,7 +47,7 @@ type VendorService = {
 
 type PendingService = {
   service_name: string; category_id: string; subcategory_id: string; sub_subcategory_id: string | null;
-  short_description: string; starting_price: number | null;
+  short_description: string; starting_price: number | null; pricing_mode: string;
   representative_image_url: string; secondary_image_url: string; gallery_image_urls: string[];
   attributes: AttributeValues;
 };
@@ -110,6 +110,7 @@ export default function ServicesScreen() {
 
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
+  // Task U: show a starting price, or "Contact for a quote" (no price shown)
   const [primaryUrl, setPrimaryUrl] = useState("");
   const [primaryPreview, setPrimaryPreview] = useState("");
   const [primaryUploading, setPrimaryUploading] = useState(false);
@@ -268,7 +269,7 @@ export default function ServicesScreen() {
     const name = currentServiceName();
     setPendingServices((prev) => [...prev, {
       service_name: name, category_id: categoryId, subcategory_id: subcategoryId, sub_subcategory_id: subSubcategoryId || null,
-      short_description: description.trim(), starting_price: Number(price) || null,
+      short_description: description.trim(), starting_price: Number(price) || null, pricing_mode: Number(price) ? "starting_from" : "quote",
       representative_image_url: primaryUrl, secondary_image_url: secondaryUrl, gallery_image_urls: galleryUrls.filter(Boolean),
       attributes: attributeValues,
     }]);
@@ -348,14 +349,14 @@ export default function ServicesScreen() {
 
         const { error } = await supabase.from("vendor_services").update({
           service_name: name, slug: slugify(name), category_id: categoryId, subcategory_id: subcategoryId,
-          sub_subcategory_id: subSubcategoryId || null, short_description: description.trim(), starting_price: Number(price) || null,
+          sub_subcategory_id: subSubcategoryId || null, short_description: description.trim(), starting_price: Number(price) || null, pricing_mode: Number(price) ? "starting_from" : "quote",
           representative_image_url: primaryUrl, secondary_image_url: secondaryUrl, gallery_image_urls: galleryToSave, attributes: attributeValues,
         }).eq("id", editingId);
         if (error) throw error;
 
         setSavedServices((prev) => prev.map((s) => s.id === editingId ? {
           ...s, service_name: name, category_id: categoryId, subcategory_id: subcategoryId, sub_subcategory_id: subSubcategoryId || null,
-          short_description: description.trim(), starting_price: Number(price) || null,
+          short_description: description.trim(), starting_price: Number(price) || null, pricing_mode: Number(price) ? "starting_from" : "quote",
           representative_image_url: primaryUrl, secondary_image_url: secondaryUrl, gallery_image_urls: galleryToSave, attributes: attributeValues,
         } : s));
         resetForm();
@@ -512,6 +513,7 @@ export default function ServicesScreen() {
 
             <Text style={styles.fieldLabel}>Starting price (optional)</Text>
             <TextInput style={styles.input} value={price} onChangeText={setPrice} keyboardType="numeric" placeholderTextColor={colors.textSecondary} />
+            <Text style={styles.charCount}>Leave the price empty and customers will see “Contact for a quote”. Every service also gets a “Request a Quote” button.</Text>
 
             {renderImageSlot("Representative Image (optional)", primaryPreview, primaryUploading, "primary")}
             {renderImageSlot("Additional Image (optional)", secondaryPreview, secondaryUploading, "secondary")}
@@ -531,7 +533,7 @@ export default function ServicesScreen() {
             {s.representative_image_url ? <Image source={{ uri: s.representative_image_url }} style={styles.pillImage} /> : <View style={[styles.pillImage, styles.pillImagePlaceholder]}><FontAwesome6 name="image" size={16} color={colors.textSecondary} /></View>}
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={styles.pillName}>{s.service_name}</Text>
-              {s.starting_price ? <Text style={styles.pillPriceLabel}>From <Text style={styles.pillPrice}>₦{Number(s.starting_price).toLocaleString()}</Text></Text> : null}
+              {s.pricing_mode === "quote" ? <Text style={styles.pillPriceLabel}><Text style={styles.pillPrice}>Contact for a quote</Text></Text> : s.starting_price ? <Text style={styles.pillPriceLabel}>From <Text style={styles.pillPrice}>₦{Number(s.starting_price).toLocaleString()}</Text></Text> : null}
             </View>
             <TouchableOpacity onPress={() => handleRemovePending(i)}><FontAwesome6 name="xmark" size={18} color={colors.textSecondary} /></TouchableOpacity>
           </View>
@@ -550,7 +552,7 @@ export default function ServicesScreen() {
                   {s.moderation_status === "pending_review" && <Text style={styles.pendingBadge}>Pending Review</Text>}
                   {s.moderation_status === "rejected" && <Text style={styles.rejectedBadge}>Not Approved</Text>}
                 </View>
-                {s.starting_price ? <Text style={styles.pillPriceLabel}>From <Text style={styles.pillPrice}>₦{Number(s.starting_price).toLocaleString()}</Text></Text> : null}
+                {s.pricing_mode === "quote" ? <Text style={styles.pillPriceLabel}><Text style={styles.pillPrice}>Contact for a quote</Text></Text> : s.starting_price ? <Text style={styles.pillPriceLabel}>From <Text style={styles.pillPrice}>₦{Number(s.starting_price).toLocaleString()}</Text></Text> : null}
               </View>
               <TouchableOpacity onPress={() => handleEditSaved(s)} style={{ marginRight: 12 }}><Text style={styles.editLink}>Edit</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => handleDeleteSaved(s.id)}><FontAwesome6 name="xmark" size={18} color={colors.error} /></TouchableOpacity>
@@ -697,6 +699,11 @@ const styles = StyleSheet.create({
   pillImage: { width: 48, height: 48, borderRadius: 8, backgroundColor: colors.border },
   pillImagePlaceholder: { alignItems: "center", justifyContent: "center" },
   pillName: { color: colors.white, fontSize: 13, fontWeight: "600" },
+  modeRow: { flexDirection: "row", gap: 8, marginBottom: 4 },
+  modeBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: 8, paddingVertical: 11, alignItems: "center" },
+  modeBtnActive: { borderColor: colors.primary, backgroundColor: "rgba(230,194,0,0.12)" },
+  modeBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: "600" },
+  modeBtnTextActive: { color: colors.primary },
   pillPrice: { color: colors.success, fontSize: 12, fontWeight: "700" },
   pillPriceLabel: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   editLink: { color: colors.primary, fontSize: 12, fontWeight: "700" },

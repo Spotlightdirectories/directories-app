@@ -16,6 +16,7 @@ import MyReviewsScreen from "../screens/customer/MyReviewsScreen";
 import RecentlyViewedScreen from "../screens/customer/RecentlyViewedScreen";
 import MyInquiriesScreen from "../screens/customer/MyInquiriesScreen";
 import MyVisitRequestsScreen from "../screens/customer/MyVisitRequestsScreen";
+import MyQuoteRequestsScreen from "../screens/customer/MyQuoteRequestsScreen";
 import ResultsScreen from "../screens/discover/ResultsScreen";
 import VendorProfileScreen from "../screens/discover/VendorProfileScreen";
 import ProductDetailScreen from "../screens/discover/ProductDetailScreen";
@@ -24,6 +25,7 @@ import DashboardHomeScreen from "../screens/vendor/DashboardHomeScreen";
 import ProductsScreen from "../screens/vendor/ProductsScreen";
 import ServicesScreen from "../screens/vendor/ServicesScreen";
 import PortfolioScreen from "../screens/vendor/PortfolioScreen";
+import VisitRequestsReceivedScreen from "../screens/vendor/VisitRequestsReceivedScreen";
 
 export type RootStackParamList = {
   Home: undefined;
@@ -39,6 +41,7 @@ export type RootStackParamList = {
   RecentlyViewed: undefined;
   MyInquiries: undefined;
   MyVisitRequests: undefined;
+  MyQuoteRequests: undefined;
   Results: {
     audience?: string;
     subgroup?: string;
@@ -62,6 +65,7 @@ export type RootStackParamList = {
   Products: undefined;
   Services: undefined;
   Portfolio: undefined;
+  VisitRequestsReceived: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -82,6 +86,7 @@ export default function RootNavigator() {
       <Stack.Screen name="RecentlyViewed" component={RecentlyViewedScreen} />
       <Stack.Screen name="MyInquiries" component={MyInquiriesScreen} />
       <Stack.Screen name="MyVisitRequests" component={MyVisitRequestsScreen} />
+      <Stack.Screen name="MyQuoteRequests" component={MyQuoteRequestsScreen} />
       <Stack.Screen name="Results" component={ResultsScreen} />
       <Stack.Screen name="VendorProfile" component={VendorProfileScreen} />
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
@@ -90,6 +95,7 @@ export default function RootNavigator() {
       <Stack.Screen name="Products" component={ProductsScreen} />
       <Stack.Screen name="Services" component={ServicesScreen} />
       <Stack.Screen name="Portfolio" component={PortfolioScreen} />
+      <Stack.Screen name="VisitRequestsReceived" component={VisitRequestsReceivedScreen} />
     </Stack.Navigator>
   );
 }
