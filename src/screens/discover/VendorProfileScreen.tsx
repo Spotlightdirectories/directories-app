@@ -191,6 +191,7 @@ export default function VendorProfileScreen() {
   const [coverBusy, setCoverBusy] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
   const [videoBusy, setVideoBusy] = useState(false);
+  const [videoStatus, setVideoStatus] = useState("");
   const [socialOpen, setSocialOpen] = useState(false);
   const [newPlatform, setNewPlatform] = useState("instagram");
   const [newSocialUrl, setNewSocialUrl] = useState("");
@@ -600,27 +601,60 @@ export default function VendorProfileScreen() {
     if (result.canceled || !result.assets[0]) return;
     const a = result.assets[0];
 
+    const isVideo = (a.mimeType || "").startsWith("video/") || a.type === "video";
+    if (!isVideo) { Alert.alert("Not a video", "Please choose a video from your phone."); return; }
     const isMp4 = a.mimeType === "video/mp4" || /\.mp4$/i.test(a.uri) || /\.mp4$/i.test(a.fileName || "");
-    if (!isMp4) { Alert.alert("Wrong format", `This video is "${a.mimeType || a.fileName || "an unknown format"}". Only MP4 videos are allowed.`); return; }
-    if (a.fileSize && a.fileSize > limits.maxSize) {
-      Alert.alert("Video too large", `This video is ${(a.fileSize / 1048576).toFixed(1)}MB. Your plan allows videos up to ${Math.round(limits.maxSize / 1048576)}MB.`);
-      return;
-    }
-    if (a.duration && a.duration / 1000 > limits.maxDuration) {
-      Alert.alert("Video too long", `This video is ${Math.round(a.duration / 1000)} seconds. Your plan allows videos up to ${limits.maxDuration} seconds.`);
-      return;
-    }
-    if (a.width && a.height && (Math.max(a.width, a.height) > 1280 || Math.min(a.width, a.height) > 720)) {
-      Alert.alert("Resolution too high", `This video is ${a.width} x ${a.height}. It must be 1280 x 720 (720p HD) or lower. Record again with your phone camera set to HD 720p.`);
+    const durSec = a.duration ? a.duration / 1000 : 0;
+    // Length can't be shortened by resizing, so this limit stays.
+    if (durSec > limits.maxDuration) {
+      Alert.alert("Video too long", `This video is ${Math.round(durSec)} seconds. Your plan allows videos up to ${limits.maxDuration} seconds.`);
       return;
     }
 
     setVideoBusy(true);
+    setVideoStatus("Preparing video...");
+    let tempUri: string | null = null;
     try {
+      let uploadUri = a.uri;
+      // Already a small 720p MP4? Upload it untouched. Otherwise resize it
+      // on the phone so it fits the plan's size limit.
+      const alreadyFine = isMp4 && !!a.fileSize && a.fileSize <= limits.maxSize
+        && !!a.width && !!a.height && Math.max(a.width, a.height) <= 1280 && Math.min(a.width, a.height) <= 720;
+      if (!alreadyFine) {
+        let Compressor: any = null;
+        try { Compressor = require("react-native-compressor").Video; } catch { Compressor = null; }
+        if (!Compressor) throw new Error("Video resizing isn't available in this version of the app. Please install the latest Spotlight app.");
+        // Data rate that fits the plan's size limit (10% safety margin, ~96 kbps for sound).
+        const seconds = durSec || limits.maxDuration;
+        const budget = Math.floor(limits.maxSize * 8 * 0.9 / seconds - 96000);
+        const bitrate = Math.min(2500000, Math.max(300000, budget));
+        const run = (br: number) => Compressor.compress(
+          a.uri,
+          { compressionMethod: "manual", maxSize: 1280, bitrate: br },
+          (p: number) => setVideoStatus(`Preparing video... ${Math.round(p <= 1 ? p * 100 : p)}%`),
+        ) as Promise<string>;
+        let out = await run(bitrate);
+        tempUri = out;
+        let outSize = new File(out).size;
+        if (outSize > limits.maxSize) {
+          // Slightly too big: try once more at a lower quality.
+          try { new File(out).delete(); } catch { /* ignore */ }
+          setVideoStatus("Preparing video...");
+          out = await run(Math.max(250000, Math.floor(bitrate * 0.6)));
+          tempUri = out;
+          outSize = new File(out).size;
+          if (outSize > limits.maxSize) {
+            throw new Error(`Even after resizing, this video is ${(outSize / 1048576).toFixed(1)}MB. Your plan allows ${Math.round(limits.maxSize / 1048576)}MB. Please choose a shorter video.`);
+          }
+        }
+        uploadUri = out;
+      }
+
+      setVideoStatus("Uploading video...");
       // Read the video straight from the phone's storage with Expo's own
       // file reader (the browser-style fetch() produced empty 14-byte
       // files, and form-data uploads aren't supported by Expo's fetch).
-      const bytes = await new File(a.uri).bytes();
+      const bytes = await new File(uploadUri).bytes();
       if (!bytes || bytes.length < 1000) throw new Error("Could not read the video from your phone. Please try again.");
       const path = `${vendor.id}/video/video-${Date.now()}.mp4`;
       const { error: upErr } = await supabase.storage.from("vendor-videos").upload(path, bytes, { contentType: "video/mp4" });
@@ -628,14 +662,14 @@ export default function VendorProfileScreen() {
       const { data: urlData } = supabase.storage.from("vendor-videos").getPublicUrl(path);
 
       // Safety check: confirm the saved file is really the size of the
-      // video that was picked, so a broken upload can never be kept.
-      if (a.fileSize) {
+      // video that was sent, so a broken upload can never be kept.
+      {
         let savedSize = 0;
         try {
           const head = await fetch(urlData.publicUrl, { method: "HEAD" });
           savedSize = Number(head.headers.get("content-length") || 0);
         } catch { /* fall through to the mismatch check */ }
-        if (!savedSize || Math.abs(savedSize - a.fileSize) > a.fileSize * 0.02) {
+        if (!savedSize || Math.abs(savedSize - bytes.length) > bytes.length * 0.02) {
           await supabase.storage.from("vendor-videos").remove([path]);
           throw new Error("The video didn't upload completely. Please check your connection and try again.");
         }
@@ -654,6 +688,8 @@ export default function VendorProfileScreen() {
     } catch (e: any) {
       Alert.alert("Video upload failed", e?.message || "Please try again on a stronger connection.");
     } finally {
+      if (tempUri) { try { new File(tempUri).delete(); } catch { /* ignore */ } }
+      setVideoStatus("");
       setVideoBusy(false);
     }
   };
@@ -992,12 +1028,12 @@ export default function VendorProfileScreen() {
               </>
             ) : (
               <>
-                <Text style={styles.aboutText}>MP4 only, up to {ownerVideoLimits.maxDuration} seconds and {Math.round(ownerVideoLimits.maxSize / 1048576)}MB, 720p or lower.</Text>
+                <Text style={styles.aboutText}>Choose any video from your phone, up to {ownerVideoLimits.maxDuration} seconds. We automatically resize it to 720p (up to {Math.round(ownerVideoLimits.maxSize / 1048576)}MB) for you.</Text>
                 {!!videoUrl && <VendorVideoPlayer key={videoRecordId || videoUrl} uri={videoUrl} />}
                 {videoBusy ? (
                   <View style={styles.videoBusy}>
                     <ActivityIndicator color={colors.primary} />
-                    <Text style={styles.emptyText}>Uploading video... please keep the app open.</Text>
+                    <Text style={styles.emptyText}>{videoStatus || "Uploading video..."} Please keep the app open.</Text>
                   </View>
                 ) : (
                   <View style={styles.ownerBtnRow}>
