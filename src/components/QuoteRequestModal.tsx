@@ -50,7 +50,11 @@ const BUDGETS = [
 ];
 
 type Photo = { uri: string; base64: string };
-type PickerKind = null | "state" | "lga" | "timeline" | "budget" | "extra";
+type PickerKind = null | "state" | "lga" | "timeline" | "budget" | "extra" | "date";
+
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const WEEKDAYS = ["Mo","Tu","We","Th","Fr","Sa","Su"];
 
 // Step 2: extra questions for the service's category family (all optional)
 type QuoteQuestion = {
@@ -83,6 +87,7 @@ export default function QuoteRequestModal({ visible, onClose, customer, vendorId
   const [questions, setQuestions] = useState<QuoteQuestion[]>([]);
   const [extra, setExtra] = useState<Record<string, string>>({});
   const [extraPickerId, setExtraPickerId] = useState<string | null>(null);
+  const [calMonth, setCalMonth] = useState<Date>(new Date());
 
   // Load this service's extra questions whenever the form is opened.
   useEffect(() => {
@@ -202,7 +207,61 @@ export default function QuoteRequestModal({ visible, onClose, customer, vendorId
   }
 
   // ---- option list shown in place of the form (avoids nested Modals) ----
+  // Simple month calendar (no extra package needed). Past days are greyed out.
+  function renderCalendar() {
+    const q = questions.find((x) => x.id === extraPickerId);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const y = calMonth.getFullYear(); const m = calMonth.getMonth();
+    const offset = (new Date(y, m, 1).getDay() + 6) % 7; // Monday first
+    const total = new Date(y, m + 1, 0).getDate();
+    const cells: (number | null)[] = [...Array(offset).fill(null), ...Array.from({ length: total }, (_, i) => i + 1)];
+    while (cells.length % 7) cells.push(null);
+    const weeks: (number | null)[][] = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+    const canPrev = y > today.getFullYear() || m > today.getMonth();
+    return (
+      <View>
+        <View style={styles.pickerHeader}>
+          <Text style={[styles.title, { flex: 1 }]} numberOfLines={2}>{q?.question || "Choose a date"}</Text>
+          <TouchableOpacity onPress={() => setPicker(null)}><Text style={styles.pickerClose}>Close</Text></TouchableOpacity>
+        </View>
+        <View style={styles.calNav}>
+          <TouchableOpacity disabled={!canPrev} onPress={() => setCalMonth(new Date(y, m - 1, 1))} style={{ opacity: canPrev ? 1 : 0.3, padding: 8 }}>
+            <FontAwesome6 name="chevron-left" size={14} color={colors.white} />
+          </TouchableOpacity>
+          <Text style={styles.calMonth}>{MONTH_NAMES[m]} {y}</Text>
+          <TouchableOpacity onPress={() => setCalMonth(new Date(y, m + 1, 1))} style={{ padding: 8 }}>
+            <FontAwesome6 name="chevron-right" size={14} color={colors.white} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.calRow}>
+          {WEEKDAYS.map((d) => <Text key={d} style={styles.calWeekday}>{d}</Text>)}
+        </View>
+        {weeks.map((w, wi) => (
+          <View key={wi} style={styles.calRow}>
+            {w.map((d, di) => {
+              if (d === null) return <View key={di} style={styles.calCell} />;
+              const isPast = new Date(y, m, d) < today;
+              const isToday = new Date(y, m, d).getTime() === today.getTime();
+              return (
+                <TouchableOpacity
+                  key={di}
+                  style={[styles.calCell, isToday && styles.calToday]}
+                  disabled={isPast}
+                  onPress={() => { if (q) setExtra({ ...extra, [q.id]: `${d} ${MONTH_SHORT[m]} ${y}` }); setPicker(null); }}
+                >
+                  <Text style={[styles.calDay, isPast && { opacity: 0.25 }]}>{d}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+    );
+  }
+
   function renderPicker() {
+    if (picker === "date") return renderCalendar();
     let title = "";
     let options: { value: string; label: string }[] = [];
     let onPick: (v: string) => void = () => {};
@@ -239,8 +298,8 @@ export default function QuoteRequestModal({ visible, onClose, customer, vendorId
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
-      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <View style={styles.card}>
+      <KeyboardAvoidingView style={[styles.overlay, submitted && { justifyContent: "center", paddingHorizontal: 20 }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={[styles.card, submitted ? { borderRadius: 16, paddingBottom: 20 } : { paddingBottom: 56 }]}>
           {submitted ? (
             <>
               <Text style={styles.title}>Quote Request Sent</Text>
@@ -313,7 +372,12 @@ export default function QuoteRequestModal({ visible, onClose, customer, vendorId
                       <View key={q.id}>
                         <Text style={styles.label}>{q.question}</Text>
                         {q.question_pidgin ? <Text style={[styles.text, { opacity: 0.7, marginTop: -2 }]}>{q.question_pidgin}</Text> : null}
-                        {q.answer_type === "choice" ? (
+                        {q.answer_type === "date" ? (
+                          <TouchableOpacity style={styles.select} onPress={() => { setExtraPickerId(q.id); setCalMonth(new Date()); setPicker("date"); }}>
+                            <Text style={extra[q.id] ? styles.selectValue : styles.selectPlaceholder}>{extra[q.id] || "Pick a date"}</Text>
+                            <FontAwesome6 name="calendar-days" size={14} color={colors.textSecondary} />
+                          </TouchableOpacity>
+                        ) : q.answer_type === "choice" ? (
                           <TouchableOpacity style={styles.select} onPress={() => { setExtraPickerId(q.id); setPicker("extra"); }}>
                             <Text style={extra[q.id] ? styles.selectValue : styles.selectPlaceholder}>{extra[q.id] || "Choose one"}</Text>
                             <FontAwesome6 name="chevron-down" size={12} color={colors.textSecondary} />
@@ -325,7 +389,7 @@ export default function QuoteRequestModal({ visible, onClose, customer, vendorId
                             onChangeText={(v) => setExtra({ ...extra, [q.id]: v })}
                             keyboardType={q.answer_type === "number" ? "numeric" : "default"}
                             maxLength={300}
-                            placeholder={q.answer_type === "date" ? "Year-month-day, e.g. 2026-12-15" : (q.placeholder || "")}
+                            placeholder={q.placeholder || ""}
                             placeholderTextColor={colors.textSecondary}
                           />
                         )}
@@ -368,6 +432,13 @@ export default function QuoteRequestModal({ visible, onClose, customer, vendorId
 }
 
 const styles = StyleSheet.create({
+  calNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  calMonth: { color: colors.white, fontSize: 15, fontWeight: "700" },
+  calRow: { flexDirection: "row" },
+  calWeekday: { width: "14.285%", textAlign: "center", color: colors.textSecondary, fontSize: 11, fontWeight: "600", paddingVertical: 6 },
+  calCell: { width: "14.285%", height: 40, alignItems: "center", justifyContent: "center", borderRadius: 8 },
+  calToday: { borderWidth: 1, borderColor: colors.primary },
+  calDay: { color: colors.white, fontSize: 14 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
   card: { backgroundColor: colors.dark, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 32, maxHeight: "92%" },
   title: { color: colors.white, fontSize: 18, fontWeight: "700", marginBottom: 12 },

@@ -14,14 +14,18 @@
 // since that also holds the client's email).
 // ===============================================================
 
-import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Image, Linking, Modal, TextInput } from "react-native";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Image, Linking, Modal, TextInput, Alert } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { File } from "expo-file-system";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useRoute, useNavigation } from "@react-navigation/native";
+import { useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { uploadVendorFile } from "../../lib/uploadVendorFile";
+import { openWebPage } from "../../lib/webHandoff";
 import SpotlightMark from "../../components/SpotlightMark";
 import AccountMenu from "../../components/AccountMenu";
 import VerifiedBadge from "../../components/VerifiedBadge";
@@ -39,6 +43,24 @@ const BRANCH_LIMITS: Record<string, number> = {
 const VIDEO_ALLOWED: Record<string, boolean> = {
   free: false, standard: true, enterprise: true, elite: true, custom: true,
 };
+
+// Owner editing limits -- identical to web's vendor/[slug]/page.tsx.
+const SOCIAL_LIMITS: Record<string, number> = { free: 0, standard: 2, enterprise: 3, elite: 5, custom: Infinity };
+const VIDEO_LIMITS: Record<string, { allowed: boolean; maxDuration: number; maxSize: number }> = {
+  free: { allowed: false, maxDuration: 0, maxSize: 0 },
+  standard: { allowed: true, maxDuration: 30, maxSize: 8 * 1024 * 1024 },
+  enterprise: { allowed: true, maxDuration: 60, maxSize: 12 * 1024 * 1024 },
+  elite: { allowed: true, maxDuration: 90, maxSize: 18 * 1024 * 1024 },
+  custom: { allowed: true, maxDuration: 120, maxSize: 24 * 1024 * 1024 },
+};
+const DESCRIPTION_WORD_LIMITS: Record<string, number> = { free: 50, standard: 100, enterprise: 150, elite: 200, custom: 250 };
+const SOCIAL_PLATFORMS = [
+  { key: "instagram", label: "Instagram" }, { key: "facebook", label: "Facebook" }, { key: "tiktok", label: "TikTok" },
+  { key: "youtube", label: "YouTube" }, { key: "website", label: "Website" },
+];
+function plainToHtml(text: string): string {
+  return text.trim().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+}
 
 // Isolated into its own component because useVideoPlayer is a hook --
 // it can't be called conditionally inside VendorProfileScreen itself,
@@ -155,6 +177,27 @@ export default function VendorProfileScreen() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isOwner, setIsOwner] = useState(false);
+  const [trialActive, setTrialActive] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const firstFocus = useRef(true);
+  // Re-read the profile whenever the person comes back to this screen
+  // (e.g. after upgrading their plan on the website), so plan limits,
+  // video and other details are never stale.
+  useFocusEffect(useCallback(() => {
+    if (firstFocus.current) { firstFocus.current = false; return; }
+    setReloadKey((k) => k + 1);
+  }, []));
+  const [videoRecordId, setVideoRecordId] = useState<string | null>(null);
+  const [coverBusy, setCoverBusy] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [videoBusy, setVideoBusy] = useState(false);
+  const [socialOpen, setSocialOpen] = useState(false);
+  const [newPlatform, setNewPlatform] = useState("instagram");
+  const [newSocialUrl, setNewSocialUrl] = useState("");
+  const [socialBusy, setSocialBusy] = useState(false);
+  const [editingAbout, setEditingAbout] = useState(false);
+  const [aboutDraft, setAboutDraft] = useState("");
+  const [savingAbout, setSavingAbout] = useState(false);
 
   const [favoriteVisible, setFavoriteVisible] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
@@ -185,6 +228,10 @@ export default function VendorProfileScreen() {
       if (!v) { setLoading(false); return; }
       setVendor(v);
       setIsOwner(!!(user && v.auth_user_id === user.id));
+      if (v.plan_tier === "free" && v.trial_started_at) {
+        const days = Math.floor((Date.now() - new Date(v.trial_started_at).getTime()) / (1000 * 60 * 60 * 24));
+        setTrialActive(days <= 90);
+      }
 
       const { data: links } = await supabase.from("vendor_social_links").select("*").eq("vendor_id", v.id);
       setSocialLinks(links || []);
@@ -257,11 +304,12 @@ export default function VendorProfileScreen() {
       if (VIDEO_ALLOWED[v.plan_tier]) {
         const { data: media } = await supabase
           .from("vendor_media")
-          .select("file_url")
+          .select("id, file_url")
           .eq("vendor_id", v.id)
           .eq("media_type", "video")
           .limit(1);
         setVideoUrl(media?.[0]?.file_url || null);
+        setVideoRecordId(media?.[0]?.id || null);
       }
 
       // Favorite state — logged-in customer, not the owner
@@ -278,7 +326,7 @@ export default function VendorProfileScreen() {
       setLoading(false);
     }
     load();
-  }, [slug]);
+  }, [slug, reloadKey]);
 
   async function toggleFavorite() {
     if (!vendor || !favoriteCustomerId || favoriteBusy) return;
@@ -390,6 +438,239 @@ export default function VendorProfileScreen() {
     : vendor.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(vendor.address)}` : null;
 
   const plainDescription = vendor.description ? stripHtml(vendor.description) : "";
+
+  // ── OWNER EDITING (own profile only) ────────────────────────────
+  // Same rules as web's vendor/[slug]/page.tsx: cover/logo go through
+  // the validate-upload function; video goes straight to the
+  // "vendor-videos" bucket with plan-based duration/size limits; social
+  // link and description limits depend on the plan.
+  const ownerVideoLimits = VIDEO_LIMITS[vendor.plan_tier] || VIDEO_LIMITS.free;
+  const effectiveSocialLimit = vendor.plan_tier === "free" ? (trialActive ? 1 : 0) : (SOCIAL_LIMITS[vendor.plan_tier] ?? 0);
+
+  const removeFromBucket = async (url: string, bucket: string) => {
+    const path = url.split(`/${bucket}/`)[1];
+    if (path) {
+      const { error } = await supabase.storage.from(bucket).remove([path]);
+      if (error) console.error(`${bucket} delete error:`, error);
+    }
+  };
+
+  const pickPhoto = async (square: boolean) => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission needed", "Please allow photo access in your phone's Settings.");
+      return null;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8, base64: true,
+      allowsEditing: square, aspect: square ? [1, 1] : undefined,
+    });
+    if (result.canceled || !result.assets[0]?.base64) return null;
+    return result.assets[0];
+  };
+
+  const changeCover = async () => {
+    if (!vendor || coverBusy) return;
+    const asset = await pickPhoto(false);
+    if (!asset) return;
+    setCoverBusy(true);
+    try {
+      const up = await uploadVendorFile(asset.base64 as string, asset.fileName || `cover-${Date.now()}.jpg`, "cover");
+      if (!up.publicUrl) throw new Error("Upload failed. Please try again.");
+      if (vendor.cover_url) await removeFromBucket(vendor.cover_url, "vendor-branding");
+      const { error } = await supabase.from("vendors").update({ cover_url: up.publicUrl }).eq("id", vendor.id);
+      if (error) throw new Error(`Uploaded, but could not save cover image: ${error.message}`);
+      setVendor({ ...vendor, cover_url: up.publicUrl });
+    } catch (e: any) {
+      Alert.alert("Cover upload failed", e?.message || "Please try again.");
+    } finally {
+      setCoverBusy(false);
+    }
+  };
+
+  const removeCover = () => {
+    if (!vendor) return;
+    Alert.alert("Delete cover image?", "This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        if (vendor.cover_url) await removeFromBucket(vendor.cover_url, "vendor-branding");
+        const { error } = await supabase.from("vendors").update({ cover_url: null }).eq("id", vendor.id);
+        if (error) { Alert.alert("Error", `Could not remove cover image: ${error.message}`); return; }
+        setVendor({ ...vendor, cover_url: null });
+      } },
+    ]);
+  };
+
+  const changeLogo = async () => {
+    if (!vendor || logoBusy) return;
+    const asset = await pickPhoto(true);
+    if (!asset) return;
+    setLogoBusy(true);
+    try {
+      const up = await uploadVendorFile(asset.base64 as string, asset.fileName || `logo-${Date.now()}.jpg`, "logo");
+      if (!up.publicUrl) throw new Error("Upload failed. Please try again.");
+      if (vendor.logo_url) await removeFromBucket(vendor.logo_url, "vendor-branding");
+      const { error } = await supabase.from("vendors").update({ logo_url: up.publicUrl }).eq("id", vendor.id);
+      if (error) throw new Error(`Uploaded, but could not save logo: ${error.message}`);
+      setVendor({ ...vendor, logo_url: up.publicUrl });
+    } catch (e: any) {
+      Alert.alert("Logo upload failed", e?.message || "Please try again.");
+    } finally {
+      setLogoBusy(false);
+    }
+  };
+
+  const logoMenu = () => {
+    if (!vendor) return;
+    const buttons: any[] = [{ text: vendor.logo_url ? "Change logo" : "Add logo", onPress: changeLogo }];
+    if (vendor.logo_url) {
+      buttons.push({ text: "Delete logo", style: "destructive", onPress: async () => {
+        if (vendor.logo_url) await removeFromBucket(vendor.logo_url, "vendor-branding");
+        const { error } = await supabase.from("vendors").update({ logo_url: null }).eq("id", vendor.id);
+        if (error) { Alert.alert("Error", `Could not remove logo: ${error.message}`); return; }
+        setVendor({ ...vendor, logo_url: null });
+      } });
+    }
+    buttons.push({ text: "Cancel", style: "cancel" });
+    Alert.alert("Business logo", undefined, buttons);
+  };
+
+  const reloadSocial = async () => {
+    if (!vendor) return;
+    const { data } = await supabase.from("vendor_social_links").select("*").eq("vendor_id", vendor.id);
+    setSocialLinks(data || []);
+  };
+
+  const addSocial = async () => {
+    if (!vendor || socialBusy) return;
+    let url = newSocialUrl.trim();
+    if (!url) { Alert.alert("Missing link", "Please enter a link."); return; }
+    if (!url.startsWith("http://") && !url.startsWith("https://")) url = "https://" + url;
+    try { new URL(url); } catch { Alert.alert("Invalid link", "Invalid link format."); return; }
+    if (socialLinks.length >= effectiveSocialLimit) {
+      Alert.alert("Limit reached", "You have reached the maximum number of social links allowed for your plan.");
+      return;
+    }
+    setSocialBusy(true);
+    const { error } = await supabase.from("vendor_social_links").insert({ vendor_id: vendor.id, platform: newPlatform, url });
+    setSocialBusy(false);
+    if (error) { Alert.alert("Error", "Couldn't add the link. Please try again."); return; }
+    setNewSocialUrl("");
+    reloadSocial();
+  };
+
+  const deleteSocial = (id: string) => {
+    Alert.alert("Remove this link?", undefined, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: async () => {
+        const { error } = await supabase.from("vendor_social_links").delete().eq("id", id);
+        if (error) { Alert.alert("Error", "Couldn't remove the link."); return; }
+        reloadSocial();
+      } },
+    ]);
+  };
+
+  const startEditAbout = () => { setAboutDraft(plainDescription); setEditingAbout(true); };
+
+  const saveAbout = async () => {
+    if (!vendor || savingAbout) return;
+    if (aboutDraft.trim() === plainDescription.trim()) { setEditingAbout(false); return; }
+    const limit = DESCRIPTION_WORD_LIMITS[vendor.plan_tier] ?? 100;
+    const words = aboutDraft.trim() ? aboutDraft.trim().split(/\s+/).length : 0;
+    if (words > limit) {
+      Alert.alert("Description too long", `Your description exceeds the ${limit}-word limit for your plan. Changes were not saved.`);
+      return;
+    }
+    setSavingAbout(true);
+    const html = plainToHtml(aboutDraft);
+    const { error } = await supabase.from("vendors").update({ description: html }).eq("id", vendor.id);
+    setSavingAbout(false);
+    if (error) { Alert.alert("Couldn't save", error.message); return; }
+    setVendor({ ...vendor, description: html });
+    setEditingAbout(false);
+  };
+
+  const uploadVideo = async () => {
+    if (!vendor || videoBusy) return;
+    const limits = ownerVideoLimits;
+    if (!limits.allowed) { Alert.alert("Not available", "Video upload is not available on your plan."); return; }
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") { Alert.alert("Permission needed", "Please allow access in your phone's Settings."); return; }
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Videos, quality: 1 });
+    if (result.canceled || !result.assets[0]) return;
+    const a = result.assets[0];
+
+    const isMp4 = a.mimeType === "video/mp4" || /\.mp4$/i.test(a.uri) || /\.mp4$/i.test(a.fileName || "");
+    if (!isMp4) { Alert.alert("Wrong format", `This video is "${a.mimeType || a.fileName || "an unknown format"}". Only MP4 videos are allowed.`); return; }
+    if (a.fileSize && a.fileSize > limits.maxSize) {
+      Alert.alert("Video too large", `This video is ${(a.fileSize / 1048576).toFixed(1)}MB. Your plan allows videos up to ${Math.round(limits.maxSize / 1048576)}MB.`);
+      return;
+    }
+    if (a.duration && a.duration / 1000 > limits.maxDuration) {
+      Alert.alert("Video too long", `This video is ${Math.round(a.duration / 1000)} seconds. Your plan allows videos up to ${limits.maxDuration} seconds.`);
+      return;
+    }
+    if (a.width && a.height && (Math.max(a.width, a.height) > 1280 || Math.min(a.width, a.height) > 720)) {
+      Alert.alert("Resolution too high", `This video is ${a.width} x ${a.height}. It must be 1280 x 720 (720p HD) or lower. Record again with your phone camera set to HD 720p.`);
+      return;
+    }
+
+    setVideoBusy(true);
+    try {
+      // Read the video straight from the phone's storage with Expo's own
+      // file reader (the browser-style fetch() produced empty 14-byte
+      // files, and form-data uploads aren't supported by Expo's fetch).
+      const bytes = await new File(a.uri).bytes();
+      if (!bytes || bytes.length < 1000) throw new Error("Could not read the video from your phone. Please try again.");
+      const path = `${vendor.id}/video/video-${Date.now()}.mp4`;
+      const { error: upErr } = await supabase.storage.from("vendor-videos").upload(path, bytes, { contentType: "video/mp4" });
+      if (upErr) throw new Error(`Could not upload video: ${upErr.message}`);
+      const { data: urlData } = supabase.storage.from("vendor-videos").getPublicUrl(path);
+
+      // Safety check: confirm the saved file is really the size of the
+      // video that was picked, so a broken upload can never be kept.
+      if (a.fileSize) {
+        let savedSize = 0;
+        try {
+          const head = await fetch(urlData.publicUrl, { method: "HEAD" });
+          savedSize = Number(head.headers.get("content-length") || 0);
+        } catch { /* fall through to the mismatch check */ }
+        if (!savedSize || Math.abs(savedSize - a.fileSize) > a.fileSize * 0.02) {
+          await supabase.storage.from("vendor-videos").remove([path]);
+          throw new Error("The video didn't upload completely. Please check your connection and try again.");
+        }
+      }
+      const { data: inserted, error: insErr } = await supabase.from("vendor_media").insert({
+        vendor_id: vendor.id, media_type: "video", file_url: urlData.publicUrl, display_order: Math.floor(Date.now() / 1000),
+      }).select("id").single();
+      if (insErr) throw new Error(`Uploaded, but could not save video: ${insErr.message}`);
+      // New video is saved -- now remove the old one.
+      if (videoUrl && videoRecordId) {
+        await removeFromBucket(videoUrl, "vendor-videos");
+        await supabase.from("vendor_media").delete().eq("id", videoRecordId);
+      }
+      setVideoUrl(urlData.publicUrl);
+      setVideoRecordId(inserted?.id || null);
+    } catch (e: any) {
+      Alert.alert("Video upload failed", e?.message || "Please try again on a stronger connection.");
+    } finally {
+      setVideoBusy(false);
+    }
+  };
+
+  const deleteVideo = () => {
+    if (!vendor || !videoUrl || !videoRecordId) return;
+    Alert.alert("Delete this video?", "This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        await removeFromBucket(videoUrl, "vendor-videos");
+        const { error } = await supabase.from("vendor_media").delete().eq("id", videoRecordId);
+        if (error) { Alert.alert("Error", `Could not remove video: ${error.message}`); return; }
+        setVideoUrl(null);
+        setVideoRecordId(null);
+      } },
+    ]);
+  };
   const visiblePortfolio = showAllPortfolio ? portfolioItems : portfolioItems.slice(0, 3);
 
   return (
@@ -405,12 +686,33 @@ export default function VendorProfileScreen() {
       {/* COVER */}
       <View style={styles.cover}>
         {vendor.cover_url ? <Image source={{ uri: vendor.cover_url }} style={styles.coverImg} /> : <View style={styles.coverPlaceholder} />}
+        {isOwner && (
+          <View style={styles.coverActions}>
+            <TouchableOpacity style={styles.editChip} onPress={changeCover} disabled={coverBusy}>
+              <FontAwesome6 name="camera" size={12} color={colors.primary} />
+              <Text style={styles.editChipText}>{vendor.cover_url ? "Change cover" : "Add cover"}</Text>
+            </TouchableOpacity>
+            {!!vendor.cover_url && (
+              <TouchableOpacity style={styles.editChip} onPress={removeCover} disabled={coverBusy}>
+                <FontAwesome6 name="trash" size={12} color={colors.error} />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+        {coverBusy && <View style={styles.busyOverlay}><ActivityIndicator color={colors.primary} /></View>}
       </View>
 
       <View style={styles.content}>
         {/* LOGO + NAME */}
         <View style={styles.heroRow}>
-          {vendor.logo_url ? <Image source={{ uri: vendor.logo_url }} style={styles.logo} /> : <Image source={{ uri: "https://spotlightdirectories.com/images/default-vendor-logo.png" }} style={styles.logo} />}
+          <View>
+            {vendor.logo_url ? <Image source={{ uri: vendor.logo_url }} style={styles.logo} /> : <Image source={{ uri: "https://spotlightdirectories.com/images/default-vendor-logo.png" }} style={styles.logo} />}
+            {isOwner && (
+              <TouchableOpacity style={styles.logoEdit} onPress={logoMenu} disabled={logoBusy}>
+                {logoBusy ? <ActivityIndicator size="small" color={colors.black} /> : <FontAwesome6 name="pen" size={10} color={colors.black} />}
+              </TouchableOpacity>
+            )}
+          </View>
           <View style={{ flex: 1, marginLeft: 12 }}>
             <View style={styles.nameRow}>
               <Text style={styles.name}>{vendor.name}</Text>
@@ -427,14 +729,60 @@ export default function VendorProfileScreen() {
 
         <Text style={styles.address}>{vendor.address}</Text>
 
-        {socialLinks.length > 0 && (
+        {(socialLinks.length > 0 || isOwner) && (
           <View style={styles.socialRow}>
             {socialLinks.map((link) => (
               <TouchableOpacity key={link.id} style={styles.socialIcon} onPress={() => Linking.openURL(link.url)}>
                 <FontAwesome6 name={SOCIAL_ICON_MAP[link.platform] || "link"} size={16} color={colors.white} />
               </TouchableOpacity>
             ))}
+            {isOwner && (
+              <TouchableOpacity style={styles.socialEdit} onPress={() => setSocialOpen(true)}>
+                <FontAwesome6 name={socialLinks.length ? "pen" : "plus"} size={11} color={colors.primary} />
+                <Text style={styles.editChipText}>{socialLinks.length ? "Edit links" : "Add social links"}</Text>
+              </TouchableOpacity>
+            )}
           </View>
+        )}
+        {isOwner && (
+          <Modal visible={socialOpen} animationType="slide" transparent onRequestClose={() => setSocialOpen(false)}>
+            <View style={styles.ownerOverlay}>
+              <View style={styles.modalSheet}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.sectionTitle}>Social links</Text>
+                  <TouchableOpacity onPress={() => setSocialOpen(false)}><Text style={styles.backText}>Done</Text></TouchableOpacity>
+                </View>
+                <Text style={styles.emptyText}>
+                  {effectiveSocialLimit === 0
+                    ? "Social links aren't included in your current plan. Upgrade on the website to add them."
+                    : `${socialLinks.length} of ${effectiveSocialLimit === Infinity ? "unlimited" : effectiveSocialLimit} used`}
+                </Text>
+                {socialLinks.map((link) => (
+                  <View key={link.id} style={styles.socialListRow}>
+                    <FontAwesome6 name={SOCIAL_ICON_MAP[link.platform] || "link"} size={16} color={colors.white} />
+                    <Text style={styles.socialListUrl} numberOfLines={1}>{link.url}</Text>
+                    <TouchableOpacity onPress={() => deleteSocial(link.id)}><FontAwesome6 name="trash" size={14} color={colors.error} /></TouchableOpacity>
+                  </View>
+                ))}
+                {effectiveSocialLimit > socialLinks.length && (
+                  <>
+                    <View style={styles.platformRow}>
+                      {SOCIAL_PLATFORMS.map((pl) => (
+                        <TouchableOpacity key={pl.key} style={[styles.platformChip, newPlatform === pl.key && styles.platformChipOn]} onPress={() => setNewPlatform(pl.key)}>
+                          <Text style={[styles.platformText, newPlatform === pl.key && { color: colors.primary, fontWeight: "700" }]}>{pl.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <TextInput style={styles.socialInput} value={newSocialUrl} onChangeText={setNewSocialUrl} autoCapitalize="none" autoCorrect={false}
+                      keyboardType="url" placeholder="Paste your link, e.g. instagram.com/yourbusiness" placeholderTextColor={colors.textSecondary} />
+                    <TouchableOpacity style={[styles.ownerBtn, { alignSelf: "stretch", justifyContent: "center", marginTop: 12 }, socialBusy && { opacity: 0.6 }]} onPress={addSocial} disabled={socialBusy}>
+                      <Text style={styles.ownerBtnText}>{socialBusy ? "Adding..." : "Add link"}</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            </View>
+          </Modal>
         )}
 
         {/* QUICK ACTIONS */}
@@ -473,8 +821,34 @@ export default function VendorProfileScreen() {
 
         {/* ABOUT */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>About the Business</Text>
-          {plainDescription ? (
+          <View style={styles.aboutHeader}>
+            <Text style={styles.sectionTitle}>About the Business</Text>
+            {isOwner && !editingAbout && (
+              <TouchableOpacity style={styles.editChip} onPress={startEditAbout}>
+                <FontAwesome6 name="pen" size={11} color={colors.primary} />
+                <Text style={styles.editChipText}>Edit</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          {editingAbout ? (
+            <>
+              <TextInput style={styles.aboutInput} value={aboutDraft} onChangeText={setAboutDraft} multiline autoFocus
+                placeholder="Tell customers about your business..." placeholderTextColor={colors.textSecondary} />
+              {(() => {
+                const lim = DESCRIPTION_WORD_LIMITS[vendor.plan_tier] ?? 100;
+                const w = aboutDraft.trim() ? aboutDraft.trim().split(/\s+/).length : 0;
+                return <Text style={[styles.emptyText, w > lim && { color: colors.error }]}>{w} / {lim} words</Text>;
+              })()}
+              <View style={styles.ownerBtnRow}>
+                <TouchableOpacity style={[styles.ownerBtn, savingAbout && { opacity: 0.6 }]} onPress={saveAbout} disabled={savingAbout}>
+                  <Text style={styles.ownerBtnText}>{savingAbout ? "Saving..." : "Save"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.ownerBtn} onPress={() => setEditingAbout(false)}>
+                  <Text style={styles.ownerBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : plainDescription ? (
             <Text style={styles.aboutText}>{plainDescription}</Text>
           ) : (
             <Text style={styles.emptyText}>No description added yet.</Text>
@@ -556,7 +930,7 @@ export default function VendorProfileScreen() {
         )}
 
         {/* PRODUCTS & SERVICES */}
-        {(products.length > 0 || services.length > 0 || videoUrl) && (
+        {(products.length > 0 || services.length > 0 || (videoUrl && !isOwner)) && (
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Products & Services</Text>
             {products.length > 0 && (
@@ -596,10 +970,48 @@ export default function VendorProfileScreen() {
             )}
 
             {/* VIDEO — Slice 3 */}
-            {videoUrl && (
+            {videoUrl && !isOwner && (
               <>
                 <Text style={[styles.subheading, { marginTop: 20 }]}>Business Video</Text>
                 <VendorVideoPlayer uri={videoUrl} />
+              </>
+            )}
+          </View>
+        )}
+
+        {/* OWNER: BUSINESS VIDEO */}
+        {isOwner && (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Business Video</Text>
+            {!ownerVideoLimits.allowed ? (
+              <>
+                <Text style={styles.aboutText}>Video isn't included in the Free plan. Upgrade your plan on the website to add a short business video.</Text>
+                <TouchableOpacity style={[styles.ownerBtn, { marginTop: 12, alignSelf: "flex-start" }]} onPress={() => openWebPage("/getlisted?context=upgrade")}>
+                  <Text style={styles.ownerBtnText}>Open website</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.aboutText}>MP4 only, up to {ownerVideoLimits.maxDuration} seconds and {Math.round(ownerVideoLimits.maxSize / 1048576)}MB, 720p or lower.</Text>
+                {!!videoUrl && <VendorVideoPlayer key={videoRecordId || videoUrl} uri={videoUrl} />}
+                {videoBusy ? (
+                  <View style={styles.videoBusy}>
+                    <ActivityIndicator color={colors.primary} />
+                    <Text style={styles.emptyText}>Uploading video... please keep the app open.</Text>
+                  </View>
+                ) : (
+                  <View style={styles.ownerBtnRow}>
+                    <TouchableOpacity style={styles.ownerBtn} onPress={uploadVideo}>
+                      <FontAwesome6 name="video" size={12} color={colors.black} />
+                      <Text style={styles.ownerBtnText}>{videoUrl ? "Replace video" : "Add video"}</Text>
+                    </TouchableOpacity>
+                    {!!videoUrl && (
+                      <TouchableOpacity style={[styles.ownerBtn, styles.ownerBtnDanger]} onPress={deleteVideo}>
+                        <Text style={[styles.ownerBtnText, { color: colors.error }]}>Delete</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
               </>
             )}
           </View>
@@ -611,6 +1023,18 @@ export default function VendorProfileScreen() {
           <TouchableOpacity style={styles.rateBtn} onPress={openReviewModal}>
             <Text style={styles.rateBtnText}>Rate</Text>
           </TouchableOpacity>
+        </View>
+        <View style={styles.reviewsSummary}>
+          <View style={{ flexDirection: "row", gap: 3 }}>
+            {[0, 1, 2, 3, 4].map((i) => {
+              const r = Number(vendor.average_rating || 0);
+              const frac = r - i;
+              if (frac >= 0.75) return <FontAwesome6 key={i} name="star" size={18} color={colors.primary} solid />;
+              if (frac >= 0.25) return <FontAwesome6 key={i} name="star-half-stroke" size={18} color={colors.primary} solid />;
+              return <FontAwesome6 key={i} name="star" size={18} color="#3a3a3a" solid />;
+            })}
+          </View>
+          <Text style={styles.reviewsSummaryText}>{Number(vendor.average_rating || 0).toFixed(1)} ({vendor.reviews_count || 0} Reviews)</Text>
         </View>
         {reviews.length === 0 ? (
           <Text style={styles.emptyText}>No reviews yet. Be the first to leave one.</Text>
@@ -743,6 +1167,29 @@ export default function VendorProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  coverActions: { position: "absolute", right: 10, bottom: 10, flexDirection: "row", gap: 8 },
+  editChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(0,0,0,0.75)", borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
+  editChipText: { color: colors.primary, fontSize: 12, fontWeight: "600" },
+  busyOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" },
+  logoEdit: { position: "absolute", right: -4, bottom: -4, width: 24, height: 24, borderRadius: 12, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  socialEdit: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: colors.primary, borderRadius: 999, paddingHorizontal: 12, height: 32 },
+  ownerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
+  modalSheet: { backgroundColor: "#141414", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 40 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  socialListRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border },
+  socialListUrl: { flex: 1, color: colors.textSecondary, fontSize: 13 },
+  platformRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 16 },
+  platformChip: { borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 14, backgroundColor: "#0d0d0d" },
+  platformChipOn: { borderColor: colors.primary, backgroundColor: "#2a2400" },
+  platformText: { color: colors.textSecondary, fontSize: 13 },
+  socialInput: { backgroundColor: "#0d0d0d", borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.white, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, marginTop: 12 },
+  aboutHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  aboutInput: { backgroundColor: "#0d0d0d", borderWidth: 1, borderColor: colors.border, borderRadius: 8, color: colors.white, padding: 12, fontSize: 14, minHeight: 140, textAlignVertical: "top", marginTop: 10 },
+  ownerBtnRow: { flexDirection: "row", gap: 10, marginTop: 14 },
+  ownerBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 18 },
+  ownerBtnDanger: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.error },
+  ownerBtnText: { color: colors.black, fontSize: 13, fontWeight: "700" },
+  videoBusy: { alignItems: "center", gap: 10, paddingVertical: 20 },
   container: { flex: 1, backgroundColor: colors.dark },
   center: { flex: 1, backgroundColor: colors.dark, alignItems: "center", justifyContent: "center" },
   emptyText: { color: colors.textSecondary, fontSize: 13, textAlign: "center", marginTop: 12 },
@@ -812,6 +1259,8 @@ const styles = StyleSheet.create({
   servicePrice: { color: colors.success, fontSize: 12, fontWeight: "700", marginTop: 6 },
   videoPlayer: { width: "100%", height: 200, borderRadius: 10, backgroundColor: "#000", marginTop: 4 },
 
+  reviewsSummary: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
+  reviewsSummaryText: { color: colors.white, fontSize: 15, fontWeight: "700" },
   reviewsHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 24, marginBottom: 12 },
   rateBtn: { backgroundColor: colors.primary, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 16 },
   rateBtnText: { color: colors.black, fontWeight: "700", fontSize: 12 },

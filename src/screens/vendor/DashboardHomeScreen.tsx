@@ -153,6 +153,10 @@ export default function DashboardHomeScreen() {
       navigation.navigate("Portfolio");
       return;
     }
+    if (key === "profile") {
+      navigation.navigate("ProfileEdit");
+      return;
+    }
     if (key === "visitRequests") {
       navigation.navigate("VisitRequestsReceived");
       return;

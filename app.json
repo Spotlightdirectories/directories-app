@@ -14,6 +14,7 @@
       }
     },
     "android": {
+      "package": "com.spotlightdirectories.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -22,8 +23,9 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -42,7 +44,14 @@
         {
           "photosPermission": "Spotlight needs access to your photos so you can add images to your products and services."
         }
-      ]
-    ]
+      ],
+      "react-native-compressor"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d8fbd22c-58d8-4efc-a81c-41e172b9ff69"
+      }
+    },
+    "owner": "spotlight-digital-services-ltd"
   }
 }
