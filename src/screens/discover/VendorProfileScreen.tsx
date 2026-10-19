@@ -70,14 +70,70 @@ function VendorVideoPlayer({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
   });
+  const videoRef = useRef<VideoView>(null);
+  const [playing, setPlaying] = useState(false);
+  const [showControls, setShowControls] = useState(true);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Our own simple controls instead of the phone's built-in player
+  // bar, which stays on screen ~5 seconds and cannot be shortened.
+  // While playing, the buttons fade after 1.5s; paused/ended keeps them.
+  const clearTimer = () => { if (hideTimer.current) { clearTimeout(hideTimer.current); hideTimer.current = null; } };
+  const flashControls = useCallback(() => {
+    setShowControls(true);
+    clearTimer();
+    hideTimer.current = setTimeout(() => setShowControls(false), 1500);
+  }, []);
+
+  useEffect(() => {
+    const sub = player.addListener("playingChange", ({ isPlaying }) => {
+      setPlaying(isPlaying);
+      if (isPlaying) flashControls();
+      else { clearTimer(); setShowControls(true); }
+    });
+    return () => { sub.remove(); clearTimer(); };
+  }, [player, flashControls]);
+
+  const togglePlay = () => {
+    if (playing) { player.pause(); return; }
+    if (player.duration > 0 && player.currentTime >= player.duration - 0.2) player.currentTime = 0;
+    player.play();
+  };
+  const onTapVideo = () => {
+    if (!showControls) { if (playing) flashControls(); else setShowControls(true); }
+    else togglePlay();
+  };
+
   return (
-    <VideoView
-      style={styles.videoPlayer}
-      player={player}
-      fullscreenOptions={{ enable: true }}
-      allowsPictureInPicture
-      nativeControls
-    />
+    <View style={styles.videoPlayer}>
+      <VideoView
+        ref={videoRef}
+        style={StyleSheet.absoluteFill}
+        player={player}
+        fullscreenOptions={{ enable: true }}
+        allowsPictureInPicture
+        nativeControls={false}
+        contentFit="contain"
+      />
+      <TouchableOpacity activeOpacity={1} style={StyleSheet.absoluteFill} onPress={onTapVideo}>
+        {showControls && (
+          <View style={styles.videoOverlay} pointerEvents="box-none">
+            <View style={styles.videoPlayBtn} pointerEvents="none">
+              <FontAwesome6 name={playing ? "pause" : "play"} size={22} color="#fff" />
+            </View>
+          </View>
+        )}
+      </TouchableOpacity>
+      {showControls && (
+        <TouchableOpacity
+          style={styles.videoFullBtn}
+          onPress={() => { videoRef.current?.enterFullscreen(); }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <FontAwesome6 name="expand" size={16} color="#fff" />
+        </TouchableOpacity>
+      )}
+    </View>
   );
 }
 
@@ -945,6 +1001,53 @@ export default function VendorProfileScreen() {
           )}
         </View>
 
+        {/* BUSINESS VIDEO — placed above Portfolio so visitors see it early */}
+        {videoUrl && !isOwner && (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Business Video</Text>
+            <VendorVideoPlayer uri={videoUrl} />
+          </View>
+        )}
+
+        {/* OWNER: BUSINESS VIDEO */}
+        {isOwner && (
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Business Video</Text>
+            {!ownerVideoLimits.allowed ? (
+              <>
+                <Text style={styles.aboutText}>Video isn't included in the Free plan. Upgrade your plan on the website to add a short business video.</Text>
+                <TouchableOpacity style={[styles.ownerBtn, { marginTop: 12, alignSelf: "flex-start" }]} onPress={() => openWebPage("/getlisted?context=upgrade")}>
+                  <Text style={styles.ownerBtnText}>Open website</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.aboutText}>Choose any video from your phone, up to {ownerVideoLimits.maxDuration} seconds. We automatically resize it to 720p (up to {Math.round(ownerVideoLimits.maxSize / 1048576)}MB) for you.</Text>
+                <Text style={styles.aboutText}>Tip: for the best look on computers, hold your phone sideways when recording.</Text>
+                {!!videoUrl && <VendorVideoPlayer key={videoRecordId || videoUrl} uri={videoUrl} />}
+                {videoBusy ? (
+                  <View style={styles.videoBusy}>
+                    <ActivityIndicator color={colors.primary} />
+                    <Text style={styles.emptyText}>{videoStatus || "Uploading video..."} Please keep the app open.</Text>
+                  </View>
+                ) : (
+                  <View style={styles.ownerBtnRow}>
+                    <TouchableOpacity style={styles.ownerBtn} onPress={uploadVideo}>
+                      <FontAwesome6 name="video" size={12} color={colors.black} />
+                      <Text style={styles.ownerBtnText}>{videoUrl ? "Replace video" : "Add video"}</Text>
+                    </TouchableOpacity>
+                    {!!videoUrl && (
+                      <TouchableOpacity style={[styles.ownerBtn, styles.ownerBtnDanger]} onPress={deleteVideo}>
+                        <Text style={[styles.ownerBtnText, { color: colors.error }]}>Delete</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        )}
+
         {/* PORTFOLIO — Slice 3, Service/Hybrid vendors only */}
         {(vendor.business_type === "service" || vendor.business_type === "hybrid") && portfolioItems.length > 0 && (
           <View style={styles.sectionCard}>
@@ -999,7 +1102,7 @@ export default function VendorProfileScreen() {
         )}
 
         {/* PRODUCTS & SERVICES */}
-        {(products.length > 0 || services.length > 0 || (videoUrl && !isOwner)) && (
+        {(products.length > 0 || services.length > 0) && (
           <View style={styles.sectionCard} onLayout={(e) => { catalogY.current = e.nativeEvent.layout.y; }}>
             <Text style={styles.sectionTitle}>Products & Services</Text>
             {products.length > 0 && (
@@ -1035,53 +1138,6 @@ export default function VendorProfileScreen() {
                     <Text style={styles.serviceDescription}>Starting from <Text style={styles.servicePrice}>₦{Number(s.starting_price || 0).toLocaleString()}</Text></Text>
                   </TouchableOpacity>
                 ))}
-              </>
-            )}
-
-            {/* VIDEO — Slice 3 */}
-            {videoUrl && !isOwner && (
-              <>
-                <Text style={[styles.subheading, { marginTop: 20 }]}>Business Video</Text>
-                <VendorVideoPlayer uri={videoUrl} />
-              </>
-            )}
-          </View>
-        )}
-
-        {/* OWNER: BUSINESS VIDEO */}
-        {isOwner && (
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Business Video</Text>
-            {!ownerVideoLimits.allowed ? (
-              <>
-                <Text style={styles.aboutText}>Video isn't included in the Free plan. Upgrade your plan on the website to add a short business video.</Text>
-                <TouchableOpacity style={[styles.ownerBtn, { marginTop: 12, alignSelf: "flex-start" }]} onPress={() => openWebPage("/getlisted?context=upgrade")}>
-                  <Text style={styles.ownerBtnText}>Open website</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={styles.aboutText}>Choose any video from your phone, up to {ownerVideoLimits.maxDuration} seconds. We automatically resize it to 720p (up to {Math.round(ownerVideoLimits.maxSize / 1048576)}MB) for you.</Text>
-                <Text style={styles.aboutText}>Tip: for the best look on computers, hold your phone sideways when recording.</Text>
-                {!!videoUrl && <VendorVideoPlayer key={videoRecordId || videoUrl} uri={videoUrl} />}
-                {videoBusy ? (
-                  <View style={styles.videoBusy}>
-                    <ActivityIndicator color={colors.primary} />
-                    <Text style={styles.emptyText}>{videoStatus || "Uploading video..."} Please keep the app open.</Text>
-                  </View>
-                ) : (
-                  <View style={styles.ownerBtnRow}>
-                    <TouchableOpacity style={styles.ownerBtn} onPress={uploadVideo}>
-                      <FontAwesome6 name="video" size={12} color={colors.black} />
-                      <Text style={styles.ownerBtnText}>{videoUrl ? "Replace video" : "Add video"}</Text>
-                    </TouchableOpacity>
-                    {!!videoUrl && (
-                      <TouchableOpacity style={[styles.ownerBtn, styles.ownerBtnDanger]} onPress={deleteVideo}>
-                        <Text style={[styles.ownerBtnText, { color: colors.error }]}>Delete</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
               </>
             )}
           </View>
@@ -1338,7 +1394,10 @@ const styles = StyleSheet.create({
   serviceName: { color: colors.white, fontSize: 14, fontWeight: "600" },
   serviceDescription: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
   servicePrice: { color: colors.success, fontSize: 12, fontWeight: "700", marginTop: 6 },
-  videoPlayer: { width: "100%", height: 200, borderRadius: 10, backgroundColor: "#000", marginTop: 4 },
+  videoPlayer: { width: "100%", height: 200, borderRadius: 10, backgroundColor: "#000", marginTop: 4, overflow: "hidden" },
+  videoOverlay: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.25)" },
+  videoPlayBtn: { width: 54, height: 54, borderRadius: 27, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
+  videoFullBtn: { position: "absolute", right: 10, bottom: 10, width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" },
 
   reviewsSummary: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
   reviewsSummaryText: { color: colors.white, fontSize: 15, fontWeight: "700" },
