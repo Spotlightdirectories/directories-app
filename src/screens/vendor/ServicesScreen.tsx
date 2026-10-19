@@ -27,6 +27,7 @@ import { FontAwesome6 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import { uploadVendorFile } from "../../lib/uploadVendorFile";
 import { openWebPage } from "../../lib/webHandoff";
 import AiDescribeModal from "../../components/AiDescribeModal";
@@ -124,23 +125,23 @@ export default function ServicesScreen() {
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [aiToast, setAiToast] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
-      const { data: v } = await supabase.from("vendors").select("id, name, plan_tier, trial_started_at").eq("auth_user_id", user.id).maybeSingle();
-      if (!v) { setLoading(false); return; }
-      setVendor(v);
+  async function load() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+    const { data: v } = await supabase.from("vendors").select("id, name, plan_tier, trial_started_at").eq("auth_user_id", user.id).maybeSingle();
+    if (!v) { setLoading(false); return; }
+    setVendor(v);
 
-      const { data: cats } = await supabase.from("categories").select("id,name").eq("kind", "service").order("name");
-      setCategories(cats || []);
+    const { data: cats } = await supabase.from("categories").select("id,name").eq("kind", "service").order("name");
+    setCategories(cats || []);
 
-      const { data: servs } = await supabase.from("vendor_services").select("*").eq("vendor_id", v.id).order("created_at", { ascending: true });
-      setSavedServices(servs || []);
-      setLoading(false);
-    }
-    load();
-  }, []);
+    const { data: servs } = await supabase.from("vendor_services").select("*").eq("vendor_id", v.id).order("created_at", { ascending: true });
+    setSavedServices(servs || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+  const { refreshControl } = usePullRefresh(load);
 
   useEffect(() => {
     if (!categoryId) { setSubcategories([]); return; }
@@ -463,7 +464,7 @@ export default function ServicesScreen() {
 
       {aiToast && <View style={styles.toast}><Text style={styles.toastText}>{aiToast}</Text></View>}
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+      <ScrollView refreshControl={refreshControl} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
         <Text style={styles.title}>Service Offerings</Text>
         <Text style={styles.subtitle}>Add and manage the services your business provides.</Text>
         <Text style={styles.helperText}>Choose a category and subcategory — the subcategory name becomes your service's name. Custom names aren't used, so listings stay consistent and easy to search.</Text>

@@ -25,6 +25,7 @@ import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import { uploadVendorFile } from "../../lib/uploadVendorFile";
 import { openWebPage } from "../../lib/webHandoff";
 import SpotlightMark from "../../components/SpotlightMark";
@@ -278,113 +279,113 @@ export default function VendorProfileScreen() {
   const [reviewRating, setReviewRating] = useState(0);
   const [submittingReview, setSubmittingReview] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
+  async function load() {
+    const { data: { user } } = await supabase.auth.getUser();
 
-      const { data: v } = await supabase.from("vendors").select("*").eq("slug", slug).maybeSingle();
-      if (!v) { setLoading(false); return; }
-      setVendor(v);
-      setIsOwner(!!(user && v.auth_user_id === user.id));
-      if (v.plan_tier === "free" && v.trial_started_at) {
-        const days = Math.floor((Date.now() - new Date(v.trial_started_at).getTime()) / (1000 * 60 * 60 * 24));
-        setTrialActive(days <= 90);
-      }
-
-      const { data: links } = await supabase.from("vendor_social_links").select("*").eq("vendor_id", v.id);
-      setSocialLinks(links || []);
-
-      const { data: revs } = await supabase
-        .from("vendor_reviews")
-        .select("reviewer_name, review_text, created_at, customer_id")
-        .eq("vendor_id", v.id)
-        .order("created_at", { ascending: false })
-        .limit(10);
-      setReviews(revs || []);
-
-      const { data: prods } = await supabase
-        .from("vendor_products")
-        .select("id, slug, product_name, price, primary_image_url")
-        .eq("vendor_id", v.id)
-        .eq("moderation_status", "approved")
-        .order("display_order", { ascending: true });
-      setProducts(prods || []);
-
-      const { data: servs } = await supabase
-        .from("vendor_services")
-        .select("id, slug, service_name, starting_price, short_description")
-        .eq("vendor_id", v.id)
-        .eq("moderation_status", "approved");
-      setServices(servs || []);
-
-      // Portfolio — Service/Hybrid vendors only, matching web
-      if (v.business_type === "service" || v.business_type === "hybrid") {
-        const { data: items } = await supabase
-          .from("vendor_portfolio_items")
-          .select("id, title, description, client_name, completed_on")
-          .eq("vendor_id", v.id)
-          .order("display_order", { ascending: true });
-        const portfolioList = items || [];
-        setPortfolioItems(portfolioList);
-
-        const entries = await Promise.all(
-          portfolioList.map(async (item) => {
-            const { data: rec } = await supabase
-              .rpc("get_portfolio_recommendation", { p_portfolio_item_id: item.id })
-              .maybeSingle();
-            return [item.id, rec] as const;
-          })
-        );
-        const byItem: Record<string, PortfolioRecommendation> = {};
-        for (const [id, rec] of entries) if (rec) byItem[id] = rec as PortfolioRecommendation;
-        setPortfolioRecs(byItem);
-      }
-
-      // Similar Businesses
-      const { data: similar } = await supabase.rpc("get_similar_businesses", {
-        p_exclude_vendor_id: v.id,
-        p_target_category: v.category,
-        p_limit: 6,
-      });
-      setSimilarBusinesses(similar || []);
-      setSimilarLoaded(true);
-
-      // Branches — read-only list, respecting plan limit
-      const { data: branchData } = await supabase
-        .from("branches")
-        .select("id, branch_name, address, latitude, longitude")
-        .eq("vendor_id", v.id)
-        .eq("account_status", "active");
-      const limit = BRANCH_LIMITS[v.plan_tier] ?? 0;
-      setBranches(branchData && limit > 0 ? branchData.slice(0, limit) : []);
-
-      // Video — only if the plan allows it, matching web's VIDEO_LIMITS
-      if (VIDEO_ALLOWED[v.plan_tier]) {
-        const { data: media } = await supabase
-          .from("vendor_media")
-          .select("id, file_url")
-          .eq("vendor_id", v.id)
-          .eq("media_type", "video")
-          .limit(1);
-        setVideoUrl(media?.[0]?.file_url || null);
-        setVideoRecordId(media?.[0]?.id || null);
-      }
-
-      // Favorite state — logged-in customer, not the owner
-      if (user && v.auth_user_id !== user.id) {
-        const { data: customer } = await supabase.from("customers").select("id").eq("auth_user_id", user.id).maybeSingle();
-        if (customer) {
-          setFavoriteCustomerId(customer.id);
-          const { data: fav } = await supabase.from("customer_favorites").select("id").eq("customer_id", customer.id).eq("vendor_id", v.id).maybeSingle();
-          setIsFavorited(!!fav);
-          setFavoriteVisible(true);
-        }
-      }
-
-      setLoading(false);
+    const { data: v } = await supabase.from("vendors").select("*").eq("slug", slug).maybeSingle();
+    if (!v) { setLoading(false); return; }
+    setVendor(v);
+    setIsOwner(!!(user && v.auth_user_id === user.id));
+    if (v.plan_tier === "free" && v.trial_started_at) {
+      const days = Math.floor((Date.now() - new Date(v.trial_started_at).getTime()) / (1000 * 60 * 60 * 24));
+      setTrialActive(days <= 90);
     }
-    load();
-  }, [slug, reloadKey]);
+
+    const { data: links } = await supabase.from("vendor_social_links").select("*").eq("vendor_id", v.id);
+    setSocialLinks(links || []);
+
+    const { data: revs } = await supabase
+      .from("vendor_reviews")
+      .select("reviewer_name, review_text, created_at, customer_id")
+      .eq("vendor_id", v.id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    setReviews(revs || []);
+
+    const { data: prods } = await supabase
+      .from("vendor_products")
+      .select("id, slug, product_name, price, primary_image_url")
+      .eq("vendor_id", v.id)
+      .eq("moderation_status", "approved")
+      .order("display_order", { ascending: true });
+    setProducts(prods || []);
+
+    const { data: servs } = await supabase
+      .from("vendor_services")
+      .select("id, slug, service_name, starting_price, short_description")
+      .eq("vendor_id", v.id)
+      .eq("moderation_status", "approved");
+    setServices(servs || []);
+
+    // Portfolio — Service/Hybrid vendors only, matching web
+    if (v.business_type === "service" || v.business_type === "hybrid") {
+      const { data: items } = await supabase
+        .from("vendor_portfolio_items")
+        .select("id, title, description, client_name, completed_on")
+        .eq("vendor_id", v.id)
+        .order("display_order", { ascending: true });
+      const portfolioList = items || [];
+      setPortfolioItems(portfolioList);
+
+      const entries = await Promise.all(
+        portfolioList.map(async (item) => {
+          const { data: rec } = await supabase
+            .rpc("get_portfolio_recommendation", { p_portfolio_item_id: item.id })
+            .maybeSingle();
+          return [item.id, rec] as const;
+        })
+      );
+      const byItem: Record<string, PortfolioRecommendation> = {};
+      for (const [id, rec] of entries) if (rec) byItem[id] = rec as PortfolioRecommendation;
+      setPortfolioRecs(byItem);
+    }
+
+    // Similar Businesses
+    const { data: similar } = await supabase.rpc("get_similar_businesses", {
+      p_exclude_vendor_id: v.id,
+      p_target_category: v.category,
+      p_limit: 6,
+    });
+    setSimilarBusinesses(similar || []);
+    setSimilarLoaded(true);
+
+    // Branches — read-only list, respecting plan limit
+    const { data: branchData } = await supabase
+      .from("branches")
+      .select("id, branch_name, address, latitude, longitude")
+      .eq("vendor_id", v.id)
+      .eq("account_status", "active");
+    const limit = BRANCH_LIMITS[v.plan_tier] ?? 0;
+    setBranches(branchData && limit > 0 ? branchData.slice(0, limit) : []);
+
+    // Video — only if the plan allows it, matching web's VIDEO_LIMITS
+    if (VIDEO_ALLOWED[v.plan_tier]) {
+      const { data: media } = await supabase
+        .from("vendor_media")
+        .select("id, file_url")
+        .eq("vendor_id", v.id)
+        .eq("media_type", "video")
+        .limit(1);
+      setVideoUrl(media?.[0]?.file_url || null);
+      setVideoRecordId(media?.[0]?.id || null);
+    }
+
+    // Favorite state — logged-in customer, not the owner
+    if (user && v.auth_user_id !== user.id) {
+      const { data: customer } = await supabase.from("customers").select("id").eq("auth_user_id", user.id).maybeSingle();
+      if (customer) {
+        setFavoriteCustomerId(customer.id);
+        const { data: fav } = await supabase.from("customer_favorites").select("id").eq("customer_id", customer.id).eq("vendor_id", v.id).maybeSingle();
+        setIsFavorited(!!fav);
+        setFavoriteVisible(true);
+      }
+    }
+
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, [slug, reloadKey]);
+  const { refreshControl } = usePullRefresh(load);
 
   // Records visitor actions for the vendor's Business Insights, and (for
   // call / WhatsApp taps) fires a Lead Alert if the vendor has them on.
@@ -793,7 +794,7 @@ export default function VendorProfileScreen() {
   const visiblePortfolio = showAllPortfolio ? portfolioItems : portfolioItems.slice(0, 3);
 
   return (
-    <ScrollView ref={scrollRef} style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
+    <ScrollView ref={scrollRef} refreshControl={refreshControl} style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>‹ Back</Text>

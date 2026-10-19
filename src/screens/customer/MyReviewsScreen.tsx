@@ -21,6 +21,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
@@ -73,6 +74,7 @@ export default function MyReviewsScreen() {
   }
 
   useFocusEffect(useCallback(() => { load(); }, []));
+  const { refreshControl } = usePullRefresh(load);
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
@@ -95,6 +97,7 @@ export default function MyReviewsScreen() {
         <Text style={styles.empty}>You haven't written any reviews yet.</Text>
       ) : (
         <FlatList
+          refreshControl={refreshControl}
           data={reviews}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: 24 }}

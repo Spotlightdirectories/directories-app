@@ -17,6 +17,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import { openWebPage } from "../../lib/webHandoff";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
@@ -120,6 +121,7 @@ export default function VisitRequestsReceivedScreen() {
   }
 
   useFocusEffect(useCallback(() => { load(); }, []));
+  const { refreshControl } = usePullRefresh(load);
 
   async function setQuoteStatus(id: string, status: "quoted" | "closed") {
     setBusyId(id);
@@ -160,7 +162,7 @@ export default function VisitRequestsReceivedScreen() {
       {error ? (
         <Text style={styles.empty}>Couldn't load your requests right now.</Text>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView refreshControl={refreshControl} contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={styles.safety}>
             <FontAwesome6 name="shield-heart" size={14} color={colors.primary} />
             <Text style={styles.safetyText}>

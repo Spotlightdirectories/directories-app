@@ -14,6 +14,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
@@ -67,6 +68,7 @@ export default function MyQuoteRequestsScreen() {
   }
 
   useFocusEffect(useCallback(() => { load(); }, []));
+  const { refreshControl } = usePullRefresh(load);
 
   function confirmClose(id: string) {
     Alert.alert("Close this request?", "The vendor will no longer see it as open. You can't reopen it.", [
@@ -101,6 +103,7 @@ export default function MyQuoteRequestsScreen() {
         <Text style={styles.empty}>No quote requests sent yet.</Text>
       ) : (
         <FlatList
+          refreshControl={refreshControl}
           data={requests}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: 24 }}

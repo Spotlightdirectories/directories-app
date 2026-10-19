@@ -14,6 +14,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import { resolveActivityItems } from "./RecentlyViewedScreen";
 import SpotlightMark from "../../components/SpotlightMark";
 import AccountMenu from "../../components/AccountMenu";
@@ -85,6 +86,7 @@ export default function CustomerDashboardScreen() {
   }
 
   useFocusEffect(useCallback(() => { load(); }, []));
+  const { refreshControl } = usePullRefresh(load);
 
   // Replaces the old "Back to Home" link, which just landed on the
   // login screen (there is no home to go back to once signed in).
@@ -97,7 +99,7 @@ export default function CustomerDashboardScreen() {
   if (!customer) return <View style={styles.center}><Text style={styles.emptyText}>Customer account not found.</Text></View>;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <ScrollView refreshControl={refreshControl} style={styles.container} contentContainerStyle={styles.scrollContent}>
       <View style={styles.topRow}>
         <TouchableOpacity onPress={handleLogout}>
           <Text style={styles.back}>Log Out</Text>

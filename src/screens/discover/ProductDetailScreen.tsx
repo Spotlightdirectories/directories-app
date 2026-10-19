@@ -24,6 +24,7 @@ import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import VerifiedBadge from "../../components/VerifiedBadge";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
@@ -71,73 +72,73 @@ export default function ProductDetailScreen() {
   const [attributeLabels, setAttributeLabels] = useState<{ key: string; label: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("vendor_products")
-        .select(`*, vendors(slug, name, whatsapp, telephone, verification_status, average_rating, reviews_count, is_sponsored)`)
-        .eq("slug", productSlug)
-        .eq("moderation_status", "approved")
-        .single();
+  async function load(quiet = false) {
+    if (!quiet) setLoading(true);
+    const { data, error } = await supabase
+      .from("vendor_products")
+      .select(`*, vendors(slug, name, whatsapp, telephone, verification_status, average_rating, reviews_count, is_sponsored)`)
+      .eq("slug", productSlug)
+      .eq("moderation_status", "approved")
+      .single();
 
-      if (error || !data) { setLoading(false); return; }
+    if (error || !data) { setLoading(false); return; }
 
-      setProduct(data);
-      setActiveImage(data.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png");
-      setLoading(false);
+    setProduct(data);
+    setActiveImage(data.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png");
+    setLoading(false);
 
-      if (data.category_id) {
-        const { data: defs } = await supabase
-          .from("product_attributes")
-          .select("key,label,subcategory_id")
-          .eq("category_id", data.category_id)
-          .order("display_order", { ascending: true });
-        // Bug fix: a category can now hold both a category-wide field and a
-        // subcategory-specific override of the same key (e.g. PPE "Size").
-        // Fetching them all produced two "Size" rows -> duplicate key warning.
-        // Keep one row per key; the subcategory-specific one wins, and rows
-        // for other subcategories are ignored (same rule as the vendor form).
-        const byKey = new Map<string, { key: string; label: string; subcategory_id: string | null }>();
-        for (const row of (defs || []) as { key: string; label: string; subcategory_id: string | null }[]) {
-          if (row.subcategory_id !== null && row.subcategory_id !== data.subcategory_id) continue;
-          const existing = byKey.get(row.key);
-          if (!existing || row.subcategory_id !== null) byKey.set(row.key, row);
-        }
-        setAttributeLabels(Array.from(byKey.values()));
-      }
-
-      try {
-        const customerId = await getViewingCustomerId();
-        await supabase.from("analytics_events").insert({
-          vendor_id: data.vendor_id, product_id: data.id, event_type: "product_view", customer_id: customerId,
-        });
-      } catch { /* non-fatal */ }
-
-      const { data: more } = await supabase
-        .from("vendor_products")
-        .select(`slug, product_name, price, primary_image_url, vendors(name, verification_status, average_rating, reviews_count)`)
-        .eq("vendor_id", data.vendor_id)
-        .eq("moderation_status", "approved")
-        .neq("id", data.id)
+    if (data.category_id) {
+      const { data: defs } = await supabase
+        .from("product_attributes")
+        .select("key,label,subcategory_id")
+        .eq("category_id", data.category_id)
         .order("display_order", { ascending: true });
-      setMoreProducts((more || []).map((p: any) => ({
-        slug: p.slug, product_name: p.product_name, price: p.price, primary_image_url: p.primary_image_url,
-        vendorName: p.vendors?.name, vendorVerification: p.vendors?.verification_status,
-        vendorRating: p.vendors?.average_rating, vendorReviews: p.vendors?.reviews_count,
-      })));
-
-      const { data: similar } = await supabase.rpc("get_similar_products", {
-        p_exclude_vendor_id: data.vendor_id, p_exclude_product_id: data.id, p_limit: 12,
-      });
-      setSimilarProducts((similar || []).map((p: any) => ({
-        slug: p.slug, product_name: p.product_name, price: p.price, primary_image_url: p.primary_image_url,
-        vendorName: p.vendor_name, vendorVerification: p.vendor_verification_status,
-        vendorRating: p.vendor_average_rating, vendorReviews: p.vendor_reviews_count,
-      })));
+      // Bug fix: a category can now hold both a category-wide field and a
+      // subcategory-specific override of the same key (e.g. PPE "Size").
+      // Fetching them all produced two "Size" rows -> duplicate key warning.
+      // Keep one row per key; the subcategory-specific one wins, and rows
+      // for other subcategories are ignored (same rule as the vendor form).
+      const byKey = new Map<string, { key: string; label: string; subcategory_id: string | null }>();
+      for (const row of (defs || []) as { key: string; label: string; subcategory_id: string | null }[]) {
+        if (row.subcategory_id !== null && row.subcategory_id !== data.subcategory_id) continue;
+        const existing = byKey.get(row.key);
+        if (!existing || row.subcategory_id !== null) byKey.set(row.key, row);
+      }
+      setAttributeLabels(Array.from(byKey.values()));
     }
-    load();
-  }, [productSlug]);
+
+    if (!quiet) try {
+      const customerId = await getViewingCustomerId();
+      await supabase.from("analytics_events").insert({
+        vendor_id: data.vendor_id, product_id: data.id, event_type: "product_view", customer_id: customerId,
+      });
+    } catch { /* non-fatal */ }
+
+    const { data: more } = await supabase
+      .from("vendor_products")
+      .select(`slug, product_name, price, primary_image_url, vendors(name, verification_status, average_rating, reviews_count)`)
+      .eq("vendor_id", data.vendor_id)
+      .eq("moderation_status", "approved")
+      .neq("id", data.id)
+      .order("display_order", { ascending: true });
+    setMoreProducts((more || []).map((p: any) => ({
+      slug: p.slug, product_name: p.product_name, price: p.price, primary_image_url: p.primary_image_url,
+      vendorName: p.vendors?.name, vendorVerification: p.vendors?.verification_status,
+      vendorRating: p.vendors?.average_rating, vendorReviews: p.vendors?.reviews_count,
+    })));
+
+    const { data: similar } = await supabase.rpc("get_similar_products", {
+      p_exclude_vendor_id: data.vendor_id, p_exclude_product_id: data.id, p_limit: 12,
+    });
+    setSimilarProducts((similar || []).map((p: any) => ({
+      slug: p.slug, product_name: p.product_name, price: p.price, primary_image_url: p.primary_image_url,
+      vendorName: p.vendor_name, vendorVerification: p.vendor_verification_status,
+      vendorRating: p.vendor_average_rating, vendorReviews: p.vendor_reviews_count,
+    })));
+  }
+
+  useEffect(() => { load(); }, [productSlug]);
+  const { refreshControl } = usePullRefresh(() => load(true));
 
   async function logContactClick(eventType: "whatsapp_click" | "phone_click") {
     if (!product) return;
@@ -172,7 +173,7 @@ export default function ProductDetailScreen() {
   const specEntries = attributeLabels.map((def) => ({ label: def.label, value: product.attributes?.[def.key] || "" })).filter((e) => e.value);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
+    <ScrollView refreshControl={refreshControl} style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.back}>‹ Back</Text>

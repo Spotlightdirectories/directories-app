@@ -18,6 +18,7 @@ import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import VerifiedBadge from "../../components/VerifiedBadge";
 import { nigeriaData } from "../../lib/nigeria-data";
 import { logSearch } from "../../lib/logSearch";
@@ -148,8 +149,8 @@ export default function ResultsScreen() {
     return items;
   }
 
-  async function runSearch(kw?: string) {
-    setLoading(true);
+  async function runSearch(kw?: string, quiet = false) {
+    if (!quiet) setLoading(true);
 
     const params = {
       p_keyword: kw || null,
@@ -240,7 +241,7 @@ export default function ResultsScreen() {
     setVendors(vendorItems);
     setLoading(false);
 
-    logSearch({ keyword: kw, searchType, category, subcategory, state: state || undefined, lga: lga || undefined, verifiedOnly: !!verifiedOnly });
+    if (!quiet) logSearch({ keyword: kw, searchType, category, subcategory, state: state || undefined, lga: lga || undefined, verifiedOnly: !!verifiedOnly });
   }
 
   useEffect(() => {
@@ -252,6 +253,8 @@ export default function ResultsScreen() {
     runSearch(keyword.trim() || undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersVersion]);
+  // Pull down: quietly re-run the same search (no spinner, no new history entry).
+  const { refreshControl } = usePullRefresh(() => runSearch(keyword.trim() || undefined, true));
 
   // Same rule as Home/web: a blank keyword is not a search -- unless
   // the user arrived by browsing a category (then refine is optional).
@@ -487,6 +490,7 @@ export default function ResultsScreen() {
         <Text style={styles.empty}>No results found. Try adjusting your search on Home.</Text>
       ) : (
         <FlatList
+          refreshControl={refreshControl}
           data={[{ key: "content" }]}
           keyExtractor={(i) => i.key}
           contentContainerStyle={{ padding: 16, paddingBottom: 40 }}

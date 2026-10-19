@@ -34,6 +34,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import { openWebPage } from "../../lib/webHandoff";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
@@ -68,28 +69,27 @@ export default function DashboardHomeScreen() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [unreadRequests, setUnreadRequests] = useState(0);
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
+  async function load() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
 
-      const { data: v } = await supabase.from("vendors").select("*").eq("auth_user_id", user.id).maybeSingle();
-      if (!v) { setLoading(false); return; }
-      setVendor(v);
+    const { data: v } = await supabase.from("vendors").select("*").eq("auth_user_id", user.id).maybeSingle();
+    if (!v) { setLoading(false); return; }
+    setVendor(v);
 
-      const [{ count: mCount }, { count: sCount }, { count: pCatCount }, { count: sCatCount }] = await Promise.all([
-        supabase.from("vendor_media").select("*", { count: "exact", head: true }).eq("vendor_id", v.id),
-        supabase.from("vendor_social_links").select("*", { count: "exact", head: true }).eq("vendor_id", v.id),
-        supabase.from("vendor_products").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).not("category_id", "is", null),
-        supabase.from("vendor_services").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).not("category_id", "is", null),
-      ]);
-      setMediaCount(mCount || 0);
-      setSocialCount(sCount || 0);
-      setCategorizedCount((pCatCount || 0) + (sCatCount || 0));
-      setLoading(false);
-    }
-    load();
-  }, []);
+    const [{ count: mCount }, { count: sCount }, { count: pCatCount }, { count: sCatCount }] = await Promise.all([
+      supabase.from("vendor_media").select("*", { count: "exact", head: true }).eq("vendor_id", v.id),
+      supabase.from("vendor_social_links").select("*", { count: "exact", head: true }).eq("vendor_id", v.id),
+      supabase.from("vendor_products").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).not("category_id", "is", null),
+      supabase.from("vendor_services").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).not("category_id", "is", null),
+    ]);
+    setMediaCount(mCount || 0);
+    setSocialCount(sCount || 0);
+    setCategorizedCount((pCatCount || 0) + (sCatCount || 0));
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
 
   useEffect(() => {
     if (!vendor || vendor.plan_tier !== "free" || !vendor.trial_started_at) return;
@@ -113,19 +113,19 @@ export default function DashboardHomeScreen() {
 
   // Unread count on the Visit & Quote Requests tile; refreshes every
   // time this screen comes back into focus (e.g. after opening the inbox).
-  useFocusEffect(useCallback(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: v } = await supabase.from("vendors").select("id").eq("auth_user_id", user.id).maybeSingle();
-      if (!v) return;
-      const [{ count: vc }, { count: qc }] = await Promise.all([
-        supabase.from("visit_requests").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).is("vendor_viewed_at", null),
-        supabase.from("quote_requests").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).is("vendor_viewed_at", null),
-      ]);
-      setUnreadRequests((vc || 0) + (qc || 0));
-    })();
-  }, []));
+  async function loadUnread() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: v } = await supabase.from("vendors").select("id").eq("auth_user_id", user.id).maybeSingle();
+    if (!v) return;
+    const [{ count: vc }, { count: qc }] = await Promise.all([
+      supabase.from("visit_requests").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).is("vendor_viewed_at", null),
+      supabase.from("quote_requests").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).is("vendor_viewed_at", null),
+    ]);
+    setUnreadRequests((vc || 0) + (qc || 0));
+  }
+  useFocusEffect(useCallback(() => { loadUnread(); }, []));
+  const { refreshControl } = usePullRefresh(() => Promise.all([load(), loadUnread()]));
 
   async function handleVerifyEmail() {
     if (!vendor) return;
@@ -211,7 +211,7 @@ export default function DashboardHomeScreen() {
     verifyState === "retry" ? "Try Again" : "Verify Email";
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+    <ScrollView refreshControl={refreshControl} style={styles.container} contentContainerStyle={styles.scrollContent}>
       <View style={styles.markRow}>
         <SpotlightMark size={20} />
       </View>

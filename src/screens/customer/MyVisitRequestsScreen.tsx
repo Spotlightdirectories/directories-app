@@ -15,6 +15,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
@@ -72,6 +73,7 @@ export default function MyVisitRequestsScreen() {
   }
 
   useFocusEffect(useCallback(() => { load(); }, []));
+  const { refreshControl } = usePullRefresh(load);
 
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
 
@@ -92,6 +94,7 @@ export default function MyVisitRequestsScreen() {
         <Text style={styles.empty}>No visit requests sent yet.</Text>
       ) : (
         <FlatList
+          refreshControl={refreshControl}
           data={requests}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: 24 }}

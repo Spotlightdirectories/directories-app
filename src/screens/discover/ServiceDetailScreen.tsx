@@ -25,6 +25,7 @@ import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import VerifiedBadge from "../../components/VerifiedBadge";
 import SpotlightMark from "../../components/SpotlightMark";
 import QuoteRequestModal, { QuoteCustomer } from "../../components/QuoteRequestModal";
@@ -84,64 +85,64 @@ export default function ServiceDetailScreen() {
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteCustomer, setQuoteCustomer] = useState<QuoteCustomer | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("vendor_services")
-        .select(`*, vendors(slug, name, whatsapp, telephone, verification_status, average_rating, reviews_count, is_sponsored)`)
-        .eq("slug", serviceSlug)
-        .eq("moderation_status", "approved")
-        .single();
+  async function load(quiet = false) {
+    if (!quiet) setLoading(true);
+    const { data, error } = await supabase
+      .from("vendor_services")
+      .select(`*, vendors(slug, name, whatsapp, telephone, verification_status, average_rating, reviews_count, is_sponsored)`)
+      .eq("slug", serviceSlug)
+      .eq("moderation_status", "approved")
+      .single();
 
-      if (error || !data) { setLoading(false); return; }
+    if (error || !data) { setLoading(false); return; }
 
-      setService(data);
-      const mainImg = data.representative_image_url || data.secondary_image_url || (data.gallery_image_urls || [])[0] || "";
-      setActiveImage(mainImg);
-      setLoading(false);
+    setService(data);
+    const mainImg = data.representative_image_url || data.secondary_image_url || (data.gallery_image_urls || [])[0] || "";
+    setActiveImage(mainImg);
+    setLoading(false);
 
-      if (data.category_id) {
-        const { data: defs } = await supabase
-          .from("service_attributes")
-          .select("key,label")
-          .eq("category_id", data.category_id)
-          .order("display_order", { ascending: true });
-        setAttributeLabels(defs || []);
-      }
-
-      try {
-        const customerId = await getViewingCustomerId();
-        await supabase.from("analytics_events").insert({
-          vendor_id: data.vendor_id, service_id: data.id, event_type: "service_view", customer_id: customerId,
-        });
-      } catch { /* non-fatal */ }
-
-      const { data: more } = await supabase
-        .from("vendor_services")
-        .select(`slug, service_name, starting_price, representative_image_url, vendors(name, verification_status, average_rating, reviews_count)`)
-        .eq("vendor_id", data.vendor_id)
-        .eq("moderation_status", "approved")
-        .neq("slug", data.slug);
-      setMoreServices((more || []).map((s: any) => ({
-        slug: s.slug, service_name: s.service_name, starting_price: s.starting_price,
-        representative_image_url: s.representative_image_url,
-        vendorName: s.vendors?.name, vendorVerification: s.vendors?.verification_status,
-        vendorRating: s.vendors?.average_rating, vendorReviews: s.vendors?.reviews_count,
-      })));
-
-      const { data: similar } = await supabase.rpc("get_similar_services", {
-        p_exclude_vendor_id: data.vendor_id, p_exclude_service_id: data.id, p_limit: 12,
-      });
-      setSimilarServices((similar || []).map((s: any) => ({
-        slug: s.slug, service_name: s.service_name, starting_price: s.starting_price,
-        representative_image_url: s.representative_image_url,
-        vendorName: s.vendor_name, vendorVerification: s.vendor_verification_status,
-        vendorRating: s.vendor_average_rating, vendorReviews: s.vendor_reviews_count,
-      })));
+    if (data.category_id) {
+      const { data: defs } = await supabase
+        .from("service_attributes")
+        .select("key,label")
+        .eq("category_id", data.category_id)
+        .order("display_order", { ascending: true });
+      setAttributeLabels(defs || []);
     }
-    load();
-  }, [serviceSlug]);
+
+    if (!quiet) try {
+      const customerId = await getViewingCustomerId();
+      await supabase.from("analytics_events").insert({
+        vendor_id: data.vendor_id, service_id: data.id, event_type: "service_view", customer_id: customerId,
+      });
+    } catch { /* non-fatal */ }
+
+    const { data: more } = await supabase
+      .from("vendor_services")
+      .select(`slug, service_name, starting_price, representative_image_url, vendors(name, verification_status, average_rating, reviews_count)`)
+      .eq("vendor_id", data.vendor_id)
+      .eq("moderation_status", "approved")
+      .neq("slug", data.slug);
+    setMoreServices((more || []).map((s: any) => ({
+      slug: s.slug, service_name: s.service_name, starting_price: s.starting_price,
+      representative_image_url: s.representative_image_url,
+      vendorName: s.vendors?.name, vendorVerification: s.vendors?.verification_status,
+      vendorRating: s.vendors?.average_rating, vendorReviews: s.vendors?.reviews_count,
+    })));
+
+    const { data: similar } = await supabase.rpc("get_similar_services", {
+      p_exclude_vendor_id: data.vendor_id, p_exclude_service_id: data.id, p_limit: 12,
+    });
+    setSimilarServices((similar || []).map((s: any) => ({
+      slug: s.slug, service_name: s.service_name, starting_price: s.starting_price,
+      representative_image_url: s.representative_image_url,
+      vendorName: s.vendor_name, vendorVerification: s.vendor_verification_status,
+      vendorRating: s.vendor_average_rating, vendorReviews: s.vendor_reviews_count,
+    })));
+  }
+
+  useEffect(() => { load(); }, [serviceSlug]);
+  const { refreshControl } = usePullRefresh(() => load(true));
 
   async function logContactClick(eventType: "whatsapp_click" | "phone_click") {
     if (!service) return;
@@ -225,7 +226,7 @@ export default function ServiceDetailScreen() {
   const visibleBullets = hasImage && !descExpanded ? bullets.slice(0, 2) : bullets;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
+    <ScrollView refreshControl={refreshControl} style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.back}>‹ Back</Text>

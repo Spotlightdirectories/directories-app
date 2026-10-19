@@ -19,6 +19,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
@@ -41,44 +42,43 @@ export default function SearchHistoryScreen() {
   const [error, setError] = useState(false);
   const [history, setHistory] = useState<SearchLogRow[]>([]);
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setError(true);
-        setLoading(false);
-        return;
-      }
-
-      const { data: customer } = await supabase
-        .from("customers")
-        .select("id")
-        .eq("auth_user_id", user.id)
-        .maybeSingle();
-
-      if (!customer) {
-        setError(true);
-        setLoading(false);
-        return;
-      }
-
-      const { data, error: fetchError } = await supabase
-        .from("search_logs")
-        .select("id, search_keyword, search_type, category, subcategory, state, lga, created_at")
-        .eq("customer_id", customer.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (fetchError) {
-        setError(true);
-      } else {
-        setHistory(data || []);
-      }
+  async function load() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setError(true);
       setLoading(false);
+      return;
     }
 
-    load();
-  }, []);
+    const { data: customer } = await supabase
+      .from("customers")
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .maybeSingle();
+
+    if (!customer) {
+      setError(true);
+      setLoading(false);
+      return;
+    }
+
+    const { data, error: fetchError } = await supabase
+      .from("search_logs")
+      .select("id, search_keyword, search_type, category, subcategory, state, lga, created_at")
+      .eq("customer_id", customer.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (fetchError) {
+      setError(true);
+    } else {
+      setHistory(data || []);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+  const { refreshControl } = usePullRefresh(load);
 
   function formatDate(iso: string) {
     return new Date(iso).toLocaleString("en-NG", {
@@ -122,6 +122,7 @@ export default function SearchHistoryScreen() {
         <Text style={styles.empty}>No searches yet — your past searches will show up here.</Text>
       ) : (
         <FlatList
+          refreshControl={refreshControl}
           data={history}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: 24 }}

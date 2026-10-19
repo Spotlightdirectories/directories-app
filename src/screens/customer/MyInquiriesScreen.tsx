@@ -14,6 +14,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import { resolveActivityItems } from "./RecentlyViewedScreen";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
@@ -47,6 +48,7 @@ export default function MyInquiriesScreen() {
   }
 
   useFocusEffect(useCallback(() => { load(); }, []));
+  const { refreshControl } = usePullRefresh(load);
 
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
 
@@ -67,6 +69,7 @@ export default function MyInquiriesScreen() {
         <Text style={styles.empty}>No inquiries yet — vendors you contact will show up here.</Text>
       ) : (
         <FlatList
+          refreshControl={refreshControl}
           data={items}
           keyExtractor={(item) => `${item.kind}-${item.slug}`}
           contentContainerStyle={{ paddingBottom: 24 }}

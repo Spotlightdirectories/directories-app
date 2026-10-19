@@ -14,6 +14,7 @@ import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import SpotlightMark from "../../components/SpotlightMark";
 import AccountMenu from "../../components/AccountMenu";
 import VerifiedBadge from "../../components/VerifiedBadge";
@@ -86,6 +87,7 @@ export default function FavoritesScreen() {
   // Refetch every time this screen comes into focus, so removing a
   // favorite from a vendor profile and coming back here stays in sync.
   useFocusEffect(useCallback(() => { load(); }, []));
+  const { refreshControl } = usePullRefresh(load);
 
   async function doRemove(favoriteId: string) {
     setFavorites((prev) => prev.filter((f) => f.favoriteId !== favoriteId));
@@ -126,6 +128,7 @@ export default function FavoritesScreen() {
         <Text style={styles.empty}>No favorites yet — tap the heart on a vendor's profile to save them here.</Text>
       ) : (
         <FlatList
+          refreshControl={refreshControl}
           data={favorites}
           keyExtractor={(item) => item.favoriteId}
           contentContainerStyle={{ paddingBottom: 24 }}

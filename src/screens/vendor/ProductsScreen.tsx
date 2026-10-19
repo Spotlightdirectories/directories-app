@@ -15,6 +15,7 @@ import { FontAwesome6 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import { uploadVendorFile } from "../../lib/uploadVendorFile";
 import { openWebPage } from "../../lib/webHandoff";
 import AiDescribeModal from "../../components/AiDescribeModal";
@@ -107,23 +108,23 @@ export default function ProductsScreen() {
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [aiToast, setAiToast] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
-      const { data: v } = await supabase.from("vendors").select("id, name, plan_tier, trial_started_at").eq("auth_user_id", user.id).maybeSingle();
-      if (!v) { setLoading(false); return; }
-      setVendor(v);
+  async function load() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+    const { data: v } = await supabase.from("vendors").select("id, name, plan_tier, trial_started_at").eq("auth_user_id", user.id).maybeSingle();
+    if (!v) { setLoading(false); return; }
+    setVendor(v);
 
-      const { data: cats } = await supabase.from("categories").select("id,name").eq("kind", "product").order("name");
-      setCategories(cats || []);
+    const { data: cats } = await supabase.from("categories").select("id,name").eq("kind", "product").order("name");
+    setCategories(cats || []);
 
-      const { data: prods } = await supabase.from("vendor_products").select("*").eq("vendor_id", v.id).order("display_order", { ascending: true });
-      setSavedProducts(prods || []);
-      setLoading(false);
-    }
-    load();
-  }, []);
+    const { data: prods } = await supabase.from("vendor_products").select("*").eq("vendor_id", v.id).order("display_order", { ascending: true });
+    setSavedProducts(prods || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+  const { refreshControl } = usePullRefresh(load);
 
   useEffect(() => {
     if (!categoryId) { setSubcategories([]); return; }
@@ -430,7 +431,7 @@ export default function ProductsScreen() {
 
       {aiToast && <View style={styles.toast}><Text style={styles.toastText}>{aiToast}</Text></View>}
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+      <ScrollView refreshControl={refreshControl} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
         <Text style={styles.title}>Product Catalogue</Text>
         <Text style={styles.subtitle}>Add and manage the products your business sells.</Text>
         <Text style={styles.limitText}>Your current plan allows up to {currentLimit} products. ({totalCount} used)</Text>

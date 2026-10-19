@@ -21,6 +21,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Activi
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../../lib/supabase";
+import { usePullRefresh } from "../../lib/usePullRefresh";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
@@ -69,26 +70,26 @@ export default function PortfolioScreen() {
 
   const totalCount = savedItems.length + pendingItems.length;
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
-      const { data: v } = await supabase.from("vendors").select("id, name").eq("auth_user_id", user.id).maybeSingle();
-      if (!v) { setLoading(false); return; }
-      setVendor(v);
+  async function load() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+    const { data: v } = await supabase.from("vendors").select("id, name").eq("auth_user_id", user.id).maybeSingle();
+    if (!v) { setLoading(false); return; }
+    setVendor(v);
 
-      const { data: items } = await supabase.from("vendor_portfolio_items").select("*").eq("vendor_id", v.id).order("display_order", { ascending: true });
-      setSavedItems(items || []);
+    const { data: items } = await supabase.from("vendor_portfolio_items").select("*").eq("vendor_id", v.id).order("display_order", { ascending: true });
+    setSavedItems(items || []);
 
-      const { data: recs } = await supabase.from("vendor_recommendation_requests").select("id, portfolio_item_id, status, recommender_email, recommender_name, recommender_company, message").eq("vendor_id", v.id);
-      const byItem: Record<string, RecommendationRequest> = {};
-      for (const row of recs || []) byItem[row.portfolio_item_id] = row;
-      setRecommendations(byItem);
+    const { data: recs } = await supabase.from("vendor_recommendation_requests").select("id, portfolio_item_id, status, recommender_email, recommender_name, recommender_company, message").eq("vendor_id", v.id);
+    const byItem: Record<string, RecommendationRequest> = {};
+    for (const row of recs || []) byItem[row.portfolio_item_id] = row;
+    setRecommendations(byItem);
 
-      setLoading(false);
-    }
-    load();
-  }, []);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, []);
+  const { refreshControl } = usePullRefresh(load);
 
   function resetForm() {
     setTitle(""); setDescription(""); setClientName(""); setCompletedOn("");
@@ -231,7 +232,7 @@ export default function PortfolioScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+      <ScrollView refreshControl={refreshControl} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
         <Text style={styles.title}>Portfolio</Text>
         <Text style={styles.subtitle}>Showcase past work for prospects — a CV for your business. Up to {PORTFOLIO_LIMIT} items, shown 2 at a time on your public profile with a "See More" to reveal the rest.</Text>
         <Text style={styles.limitText}>{totalCount} / {PORTFOLIO_LIMIT} used</Text>
