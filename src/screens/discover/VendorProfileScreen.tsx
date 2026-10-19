@@ -15,13 +15,14 @@
 // ===============================================================
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Image, Linking, Modal, TextInput, Alert } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Image, Linking, Modal, TextInput, Alert, KeyboardAvoidingView } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { File } from "expo-file-system";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useRoute, useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import { uploadVendorFile } from "../../lib/uploadVendorFile";
@@ -73,7 +74,7 @@ function VendorVideoPlayer({ uri }: { uri: string }) {
     <VideoView
       style={styles.videoPlayer}
       player={player}
-      allowsFullscreen
+      fullscreenOptions={{ enable: true }}
       allowsPictureInPicture
       nativeControls
     />
@@ -160,7 +161,7 @@ function initialsOf(text: string): string {
 
 export default function VendorProfileScreen() {
   const route = useRoute<Route>();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { slug } = route.params;
 
   const [vendor, setVendor] = useState<Vendor | null>(null);
@@ -329,6 +330,32 @@ export default function VendorProfileScreen() {
     load();
   }, [slug, reloadKey]);
 
+  // Records visitor actions for the vendor's Business Insights, and (for
+  // call / WhatsApp taps) fires a Lead Alert if the vendor has them on.
+  // Same behaviour as the website's logEvent. Never blocks the action.
+  async function logEvent(eventType: string) {
+    if (!vendor) return;
+    try { await supabase.from("analytics_events").insert({ vendor_id: vendor.id, event_type: eventType }); }
+    catch { /* non-fatal */ }
+    if (eventType === "phone_click" || eventType === "whatsapp_click") {
+      try {
+        supabase.functions.invoke("notify-lead", {
+          body: { vendor_id: vendor.id, action: eventType === "whatsapp_click" ? "whatsapp" : "call" },
+        });
+      } catch { /* non-fatal */ }
+    }
+  }
+
+  // "Catalog" button: scrolls down to Products & Services (as on the website).
+  const scrollRef = useRef<ScrollView>(null);
+  const contentY = useRef(0);
+  const catalogY = useRef<number | null>(null);
+  const goToCatalog = () => {
+    logEvent("catalog_visit");
+    if (catalogY.current === null) { Alert.alert("Nothing to show yet", "This business hasn't added any products or services yet."); return; }
+    scrollRef.current?.scrollTo({ y: Math.max(0, contentY.current + catalogY.current - 12), animated: true });
+  };
+
   async function toggleFavorite() {
     if (!vendor || !favoriteCustomerId || favoriteBusy) return;
     setFavoriteBusy(true);
@@ -344,9 +371,9 @@ export default function VendorProfileScreen() {
 
   async function openVisitModal() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigation.navigate("CustomerLogin" as never); return; }
+    if (!user) { navigation.navigate("CustomerLogin"); return; }
     const { data: customer } = await supabase.from("customers").select("id, name, phone").eq("auth_user_id", user.id).maybeSingle();
-    if (!customer) { navigation.navigate("CustomerLogin" as never); return; }
+    if (!customer) { navigation.navigate("CustomerLogin"); return; }
     setVisitCustomer(customer);
     setVisitPhone(customer.phone || "");
     setVisitLocation("");
@@ -710,7 +737,7 @@ export default function VendorProfileScreen() {
   const visiblePortfolio = showAllPortfolio ? portfolioItems : portfolioItems.slice(0, 3);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
+    <ScrollView ref={scrollRef} style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>‹ Back</Text>
@@ -738,51 +765,53 @@ export default function VendorProfileScreen() {
         {coverBusy && <View style={styles.busyOverlay}><ActivityIndicator color={colors.primary} /></View>}
       </View>
 
-      <View style={styles.content}>
-        {/* LOGO + NAME */}
-        <View style={styles.heroRow}>
-          <View>
-            {vendor.logo_url ? <Image source={{ uri: vendor.logo_url }} style={styles.logo} /> : <Image source={{ uri: "https://spotlightdirectories.com/images/default-vendor-logo.png" }} style={styles.logo} />}
+      <View style={styles.content} onLayout={(e) => { contentY.current = e.nativeEvent.layout.y; }}>
+        {/* PROFILE BANNER: logo, name, category, reviews, address and social links
+            in one horizontal card, the way the website shows it. */}
+        <View style={styles.bannerCard}>
+          <View style={styles.bannerLogoWrap}>
+            <Image
+              source={{ uri: vendor.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png" }}
+              style={styles.bannerLogo}
+            />
             {isOwner && (
               <TouchableOpacity style={styles.logoEdit} onPress={logoMenu} disabled={logoBusy}>
                 {logoBusy ? <ActivityIndicator size="small" color={colors.black} /> : <FontAwesome6 name="pen" size={10} color={colors.black} />}
               </TouchableOpacity>
             )}
           </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={styles.bannerText}>
             <View style={styles.nameRow}>
-              <Text style={styles.name}>{vendor.name}</Text>
+              <Text style={styles.bannerName} numberOfLines={1}>{vendor.name}</Text>
               <Badge status={vendor.verification_status} />
             </View>
-            <Text style={styles.category}>{vendor.category}{vendor.subcategory ? ` • ${vendor.subcategory}` : ""}</Text>
-          </View>
-        </View>
-
-        <View style={styles.ratingRow}>
-          <FontAwesome6 name="star" size={13} color={colors.primary} solid />
-          <Text style={styles.ratingText}>{Number(vendor.average_rating || 0).toFixed(1)} ({vendor.reviews_count || 0} reviews)</Text>
-        </View>
-
-        <Text style={styles.address}>{vendor.address}</Text>
-
-        {(socialLinks.length > 0 || isOwner) && (
-          <View style={styles.socialRow}>
-            {socialLinks.map((link) => (
-              <TouchableOpacity key={link.id} style={styles.socialIcon} onPress={() => Linking.openURL(link.url)}>
-                <FontAwesome6 name={SOCIAL_ICON_MAP[link.platform] || "link"} size={16} color={colors.white} />
-              </TouchableOpacity>
-            ))}
-            {isOwner && (
-              <TouchableOpacity style={styles.socialEdit} onPress={() => setSocialOpen(true)}>
-                <FontAwesome6 name={socialLinks.length ? "pen" : "plus"} size={11} color={colors.primary} />
-                <Text style={styles.editChipText}>{socialLinks.length ? "Edit links" : "Add social links"}</Text>
-              </TouchableOpacity>
+            <View style={styles.bannerMeta}>
+              <View style={styles.bannerRating}>
+                <FontAwesome6 name="star" size={10} color={colors.primary} solid />
+                <Text style={[styles.bannerSmall, { color: colors.white, fontWeight: "600" }]}>{Number(vendor.average_rating || 0).toFixed(1)} ({vendor.reviews_count || 0})</Text>
+              </View>
+            </View>
+            <Text style={styles.bannerAddress} numberOfLines={2}>{vendor.address}</Text>
+            {(socialLinks.length > 0 || isOwner) && (
+              <View style={styles.bannerSocialRow}>
+                {socialLinks.map((link) => (
+                  <TouchableOpacity key={link.id} style={styles.bannerSocialIcon} onPress={() => { logEvent("external_visit"); Linking.openURL(link.url); }}>
+                    <FontAwesome6 name={SOCIAL_ICON_MAP[link.platform] || "link"} size={12} color={colors.white} />
+                  </TouchableOpacity>
+                ))}
+                {isOwner && (
+                  <TouchableOpacity style={styles.socialEdit} onPress={() => setSocialOpen(true)}>
+                    <FontAwesome6 name={socialLinks.length ? "pen" : "plus"} size={10} color={colors.primary} />
+                    <Text style={styles.editChipText}>{socialLinks.length ? "Edit links" : "Add social links"}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
           </View>
-        )}
+        </View>
         {isOwner && (
           <Modal visible={socialOpen} animationType="slide" transparent onRequestClose={() => setSocialOpen(false)}>
-            <View style={styles.ownerOverlay}>
+            <KeyboardAvoidingView style={styles.ownerOverlay} behavior="padding">
               <View style={styles.modalSheet}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.sectionTitle}>Social links</Text>
@@ -817,30 +846,34 @@ export default function VendorProfileScreen() {
                   </>
                 )}
               </View>
-            </View>
+            </KeyboardAvoidingView>
           </Modal>
         )}
 
         {/* QUICK ACTIONS */}
         <View style={styles.actionsRow}>
           {vendor.whatsapp && (
-            <TouchableOpacity style={styles.action} onPress={() => Linking.openURL(`https://wa.me/${vendor.whatsapp}`)}>
+            <TouchableOpacity style={styles.action} onPress={() => { logEvent("whatsapp_click"); Linking.openURL(`https://wa.me/${vendor.whatsapp}`); }}>
               <FontAwesome6 name="whatsapp" size={18} color={colors.white} />
               <Text style={styles.actionText}>WhatsApp</Text>
             </TouchableOpacity>
           )}
           {(vendor.phone || vendor.whatsapp) && (
-            <TouchableOpacity style={styles.action} onPress={() => Linking.openURL(`tel:${vendor.phone || vendor.whatsapp}`)}>
+            <TouchableOpacity style={styles.action} onPress={() => { logEvent("phone_click"); Linking.openURL(`tel:${vendor.phone || vendor.whatsapp}`); }}>
               <FontAwesome6 name="phone" size={16} color={colors.white} />
               <Text style={styles.actionText}>Call</Text>
             </TouchableOpacity>
           )}
           {mapHref && (
-            <TouchableOpacity style={styles.action} onPress={() => Linking.openURL(mapHref)}>
+            <TouchableOpacity style={styles.action} onPress={() => { logEvent("direction_click"); Linking.openURL(mapHref); }}>
               <FontAwesome6 name="location-arrow" size={16} color={colors.white} />
               <Text style={styles.actionText}>Directions</Text>
             </TouchableOpacity>
           )}
+          <TouchableOpacity style={styles.action} onPress={goToCatalog}>
+            <FontAwesome6 name="book-open" size={16} color={colors.white} />
+            <Text style={styles.actionText}>Catalog</Text>
+          </TouchableOpacity>
           {favoriteVisible && (
             <TouchableOpacity style={styles.action} onPress={toggleFavorite} disabled={favoriteBusy}>
               <FontAwesome6 name="heart" size={16} color={isFavorited ? colors.primary : colors.white} solid={isFavorited} />
@@ -967,7 +1000,7 @@ export default function VendorProfileScreen() {
 
         {/* PRODUCTS & SERVICES */}
         {(products.length > 0 || services.length > 0 || (videoUrl && !isOwner)) && (
-          <View style={styles.sectionCard}>
+          <View style={styles.sectionCard} onLayout={(e) => { catalogY.current = e.nativeEvent.layout.y; }}>
             <Text style={styles.sectionTitle}>Products & Services</Text>
             {products.length > 0 && (
               <>
@@ -977,7 +1010,7 @@ export default function VendorProfileScreen() {
                     <TouchableOpacity
                       key={p.id}
                       style={styles.productCard}
-                      onPress={() => navigation.navigate("ProductDetail" as never, { vendorSlug: vendor.slug, productSlug: p.slug } as never)}
+                      onPress={() => navigation.navigate("ProductDetail", { vendorSlug: vendor.slug, productSlug: p.slug })}
                     >
                       <Image source={{ uri: p.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.productImage} />
                       <Text style={styles.productName} numberOfLines={2}>{p.product_name}</Text>
@@ -995,7 +1028,7 @@ export default function VendorProfileScreen() {
                   <TouchableOpacity
                     key={s.id}
                     style={styles.serviceCard}
-                    onPress={() => navigation.navigate("ServiceDetail" as never, { vendorSlug: vendor.slug, serviceSlug: s.slug } as never)}
+                    onPress={() => navigation.navigate("ServiceDetail", { vendorSlug: vendor.slug, serviceSlug: s.slug })}
                   >
                     <Text style={styles.serviceName}>{s.service_name}</Text>
                     {s.short_description && <Text style={styles.serviceDescription} numberOfLines={2}>{s.short_description}</Text>}
@@ -1029,6 +1062,7 @@ export default function VendorProfileScreen() {
             ) : (
               <>
                 <Text style={styles.aboutText}>Choose any video from your phone, up to {ownerVideoLimits.maxDuration} seconds. We automatically resize it to 720p (up to {Math.round(ownerVideoLimits.maxSize / 1048576)}MB) for you.</Text>
+                <Text style={styles.aboutText}>Tip: for the best look on computers, hold your phone sideways when recording.</Text>
                 {!!videoUrl && <VendorVideoPlayer key={videoRecordId || videoUrl} uri={videoUrl} />}
                 {videoBusy ? (
                   <View style={styles.videoBusy}>
@@ -1108,7 +1142,7 @@ export default function VendorProfileScreen() {
                 <TouchableOpacity
                   key={b.id}
                   style={styles.similarCard}
-                  onPress={() => navigation.navigate("VendorProfile" as never, { slug: b.slug } as never)}
+                  onPress={() => navigation.navigate("VendorProfile", { slug: b.slug })}
                 >
                   <Image source={{ uri: b.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png" }} style={styles.similarLogo} />
                   <View style={styles.similarNameRow}>
@@ -1231,12 +1265,23 @@ const styles = StyleSheet.create({
   emptyText: { color: colors.textSecondary, fontSize: 13, textAlign: "center", marginTop: 12 },
 
   cover: { height: 160, width: "100%", backgroundColor: "#1a1a1a", overflow: "hidden", alignItems: "center", justifyContent: "center" },
-  coverImg: { width: "100%", height: "100%", resizeMode: "contain" },
+  coverImg: { width: "100%", height: "100%", resizeMode: "cover" },
   coverPlaceholder: { width: "100%", height: "100%", backgroundColor: "#1a1a1a" },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, paddingTop: 50, paddingBottom: 10 },
   backText: { color: colors.primary, fontSize: 15 },
 
-  content: { padding: 20, paddingTop: 0, marginTop: -35 },
+  content: { padding: 20, paddingTop: 0, marginTop: -22 },
+  bannerCard: { flexDirection: "row", alignItems: "stretch", backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 16, padding: 5 },
+  bannerLogoWrap: { width: 84, minHeight: 84 },
+  bannerLogo: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, borderRadius: 12, backgroundColor: colors.dark, resizeMode: "cover" },
+  bannerText: { flex: 1, marginLeft: 10, marginRight: 4, paddingVertical: 2, justifyContent: "center", gap: 2 },
+  bannerName: { flexShrink: 1, color: colors.white, fontSize: 15, fontWeight: "700" },
+  bannerMeta: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", columnGap: 10 },
+  bannerRating: { flexDirection: "row", alignItems: "center", gap: 4 },
+  bannerSmall: { color: colors.textSecondary, fontSize: 11 },
+  bannerAddress: { color: colors.textSecondary, fontSize: 11, lineHeight: 14 },
+  bannerSocialRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 2 },
+  bannerSocialIcon: { width: 24, height: 24, borderRadius: 12, backgroundColor: "#1f2937", alignItems: "center", justifyContent: "center" },
   heroRow: { flexDirection: "row", alignItems: "flex-end" },
   logo: { width: 64, height: 64, borderRadius: 12, borderWidth: 2, borderColor: colors.dark, backgroundColor: colors.dark, resizeMode: "cover", overflow: "hidden" },
   logoPlaceholder: { width: 64, height: 64, borderRadius: 12, borderWidth: 2, borderColor: colors.dark, backgroundColor: "#141414", alignItems: "center", justifyContent: "center" },

@@ -267,7 +267,7 @@ export default function ServiceDetailScreen() {
           </Text>
         )}
 
-        <View style={[styles.vendorMeta, !hasImage && styles.textCenter]}>
+        <View style={styles.vendorMeta}>
           <View style={[styles.vendorRow, !hasImage && styles.centerRow]}>
             <Text style={styles.vendorName}>By {vendor?.name || ""}</Text>
             <SmallBadge status={vendor?.verification_status || "none"} />
