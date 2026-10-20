@@ -15,7 +15,7 @@ import { FontAwesome6 } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../../lib/supabase";
 import { usePullRefresh } from "../../lib/usePullRefresh";
-import { openWebPage } from "../../lib/webHandoff";
+import { openWebPageSignedIn } from "../../lib/webHandoff";
 import { colors } from "../../theme/colors";
 import SpotlightMark from "../../components/SpotlightMark";
 
@@ -401,7 +401,7 @@ export default function InsightsScreen() {
       action: null as null | { label: string; run: () => void } },
     { title: "Complete Business Verification", done: health.items[1].score >= 20, impact: health.items[1].score >= 20 ? null : "High impact",
       lines: [`Score: ${health.items[1].score}/20`, vendorRow?.verification_status === "blue" ? "✓ Fully verified" : vendorRow?.verification_status === "gray" ? "✓ Partially verified" : "✗ Not verified yet"],
-      action: health.items[1].score >= 20 ? null : { label: "Verify on website", run: () => openWebPage("/verify-badge") } },
+      action: health.items[1].score >= 20 ? null : { label: "Verify on website", run: () => openWebPageSignedIn("/verify-badge") } },
     { title: "Add & Complete Products / Services", done: health.items[3].score >= 20, impact: health.items[3].score >= 20 ? null : "High impact",
       lines: [`Score: ${health.items[3].score}/20`, `Products: ${health.catalog.products} | Services: ${health.catalog.services}`, `Current listings: ${health.catalog.total} / Recommended: ${health.catalog.required}`, health.catalog.total < health.catalog.required ? `${health.catalog.required - health.catalog.total} more listing(s) recommended` : "You've met the recommended catalog size."],
       action: null },
@@ -410,7 +410,7 @@ export default function InsightsScreen() {
       action: null },
     { title: "Sponsor Business / Products / Services", done: sponsorships.length > 0, impact: sponsorships.length > 0 ? null : "High impact",
       lines: [`Score: ${health.items[4].score}/20`, sponsorships.length > 0 ? `Currently sponsoring ${sponsorships.length} item${sponsorships.length > 1 ? "s" : ""}` : "Not currently sponsoring anything"],
-      action: sponsorships.length > 0 ? null : { label: "Sponsor Now (website)", run: () => openWebPage("/getsponsored") } },
+      action: sponsorships.length > 0 ? null : { label: "Sponsor Now (website)", run: () => openWebPageSignedIn("/getsponsored") } },
   ] : [];
   const nearest = sponsorships[0];
   const daysLeft = nearest ? Math.max(0, Math.ceil((new Date(nearest.expires_at).getTime() - Date.now()) / 86400000)) : 0;
@@ -653,7 +653,7 @@ export default function InsightsScreen() {
             : "Sponsor your business to appear first in search results and reach more customers."}
         </Text>
         {nearest && <Text style={[styles.statValue, { marginTop: 8, color: daysLeft <= 7 ? colors.error : colors.white }]}>{daysLeft === 1 ? "1 day left" : `${daysLeft} days left`}</Text>}
-        <TouchableOpacity style={styles.webBtn} onPress={() => openWebPage("/getsponsored")}>
+        <TouchableOpacity style={styles.webBtn} onPress={() => openWebPageSignedIn("/getsponsored")}>
           <Text style={styles.webBtnText}>{sponsorships.length > 0 ? "Manage Sponsorship (website)" : "Sponsor Now (website)"}</Text>
         </TouchableOpacity>
       </View>

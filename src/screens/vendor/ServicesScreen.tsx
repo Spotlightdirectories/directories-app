@@ -31,7 +31,7 @@ import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../../lib/supabase";
 import { usePullRefresh } from "../../lib/usePullRefresh";
 import { uploadVendorFile } from "../../lib/uploadVendorFile";
-import { openWebPage } from "../../lib/webHandoff";
+import { openWebPageSignedIn } from "../../lib/webHandoff";
 import AiDescribeModal from "../../components/AiDescribeModal";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
@@ -257,7 +257,7 @@ export default function ServicesScreen() {
     }
     if (totalCount >= currentLimit) {
       Alert.alert("Plan limit reached", `Your current plan allows up to ${currentLimit} services. Upgrade to add more.`,
-        [{ text: "Cancel", style: "cancel" }, { text: "Upgrade", onPress: () => openWebPage("/getlisted?context=upgrade") }]);
+        [{ text: "Cancel", style: "cancel" }, { text: "Upgrade", onPress: () => openWebPageSignedIn("/getlisted?context=upgrade") }]);
       return;
     }
     if (!editingId && subSubcategoryId && usedSubSubcategoryIds.has(subSubcategoryId)) {
@@ -453,7 +453,7 @@ export default function ServicesScreen() {
           onPress={() => {
             if (!formOpen && totalCount >= currentLimit) {
               Alert.alert("Plan limit reached", `Your current plan allows up to ${currentLimit} services.`,
-                [{ text: "Cancel", style: "cancel" }, { text: "Upgrade", onPress: () => openWebPage("/getlisted?context=upgrade") }]);
+                [{ text: "Cancel", style: "cancel" }, { text: "Upgrade", onPress: () => openWebPageSignedIn("/getlisted?context=upgrade") }]);
               return;
             }
             setFormOpen((v) => !v);

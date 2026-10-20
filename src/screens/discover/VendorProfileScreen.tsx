@@ -29,7 +29,7 @@ import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import { usePullRefresh } from "../../lib/usePullRefresh";
 import { uploadVendorFile } from "../../lib/uploadVendorFile";
-import { openWebPage } from "../../lib/webHandoff";
+import { openWebPageSignedIn } from "../../lib/webHandoff";
 import SpotlightMark from "../../components/SpotlightMark";
 import AccountMenu from "../../components/AccountMenu";
 import VerifiedBadge from "../../components/VerifiedBadge";
@@ -1034,7 +1034,7 @@ export default function VendorProfileScreen() {
             {!ownerVideoLimits.allowed ? (
               <>
                 <Text style={styles.aboutText}>Video isn't included in the Free plan. Upgrade your plan on the website to add a short business video.</Text>
-                <TouchableOpacity style={[styles.ownerBtn, { marginTop: 12, alignSelf: "flex-start" }]} onPress={() => openWebPage("/getlisted?context=upgrade")}>
+                <TouchableOpacity style={[styles.ownerBtn, { marginTop: 12, alignSelf: "flex-start" }]} onPress={() => openWebPageSignedIn("/getlisted?context=upgrade")}>
                   <Text style={styles.ownerBtnText}>Open website</Text>
                 </TouchableOpacity>
               </>

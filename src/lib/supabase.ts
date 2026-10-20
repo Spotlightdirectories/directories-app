@@ -23,6 +23,7 @@
 import "react-native-url-polyfill/auto";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
+import { cachedFetch, clearOfflineCache } from "./offlineCache";
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
@@ -41,4 +42,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     detectSessionInUrl: false, // no browser URL bar on mobile
   },
+  // Offline mode: reads fall back to the last saved copy when there is no connection.
+  global: { fetch: cachedFetch },
+});
+
+// Saved offline copies belong to the account; wipe them when someone logs out.
+supabase.auth.onAuthStateChange((event) => {
+  if (event === "SIGNED_OUT") clearOfflineCache();
 });

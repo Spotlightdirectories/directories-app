@@ -35,7 +35,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import { usePullRefresh } from "../../lib/usePullRefresh";
-import { openWebPage } from "../../lib/webHandoff";
+import { openWebPageSignedIn } from "../../lib/webHandoff";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
@@ -273,7 +273,7 @@ export default function DashboardHomeScreen() {
             <Text style={styles.trialDays}>{trialText.days}</Text>
           </View>
         )}
-        <TouchableOpacity style={styles.upgradeBtn} onPress={() => openWebPage("/getlisted?context=upgrade")}>
+        <TouchableOpacity style={styles.upgradeBtn} onPress={() => openWebPageSignedIn("/getlisted?context=upgrade")}>
           <Text style={styles.upgradeBtnText}>Compare Plans</Text>
         </TouchableOpacity>
       </View>
