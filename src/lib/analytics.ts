@@ -12,8 +12,25 @@ import { supabase } from "./supabase";
 
 const ID_KEY = "spotlight_vid";
 const STATE_KEY = "spotlight_vstate";
+const OPT_KEY = "spotlight_analytics_off";
 const STATE_TTL = 24 * 60 * 60 * 1000;
-const GEO_URL = "https://gyvzmktavyrevfxnwsay.supabase.co/functions/v1/visitor-geo";
+const GEO_URL = "https://spotlightdirectories.com/api/visitor-geo";
+
+export async function isAnalyticsOptedOut(): Promise<boolean> {
+  try { return (await AsyncStorage.getItem(OPT_KEY)) === "1"; } catch { return false; }
+}
+
+export async function setAnalyticsOptOut(off: boolean) {
+  try {
+    if (off) {
+      await AsyncStorage.setItem(OPT_KEY, "1");
+      await AsyncStorage.multiRemove([ID_KEY, STATE_KEY]);
+      idPromise = null;
+    } else {
+      await AsyncStorage.removeItem(OPT_KEY);
+    }
+  } catch { /* ignore */ }
+}
 
 function makeId() {
   const h = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, "0");
@@ -64,6 +81,9 @@ async function getVisitorState(): Promise<string | null> {
 export async function insertAnalytics(rows: Record<string, unknown> | Record<string, unknown>[]) {
   let meta: Record<string, unknown> = {};
   try {
+    // Opted out: the event still counts toward the business's totals,
+    // but carries no visitor code and no location.
+    if (await isAnalyticsOptedOut()) throw new Error("opted out");
     const [id, state] = await Promise.all([getVisitorId(), getVisitorState()]);
     meta = { visitor_id: id, visitor_state: state };
   } catch { /* analytics must never break a screen */ }

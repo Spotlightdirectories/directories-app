@@ -18,6 +18,7 @@ import { usePullRefresh } from "../../lib/usePullRefresh";
 import { resolveActivityItems } from "./RecentlyViewedScreen";
 import SpotlightMark from "../../components/SpotlightMark";
 import AccountMenu from "../../components/AccountMenu";
+import AnalyticsOptOut from "../../components/AnalyticsOptOut";
 import { colors } from "../../theme/colors";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "CustomerDashboard">;
@@ -134,6 +135,10 @@ export default function CustomerDashboardScreen() {
             <Text style={styles.cardLabel}>{card.label}</Text>
           </TouchableOpacity>
         ))}
+      </View>
+
+      <View style={{ backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, marginTop: 14 }}>
+        <AnalyticsOptOut />
       </View>
     </ScrollView>
   );

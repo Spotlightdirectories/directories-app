@@ -13,6 +13,7 @@ import KeyboardAwareScroll from "../../components/KeyboardAwareScroll";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../../lib/supabase";
 import { usePullRefresh } from "../../lib/usePullRefresh";
+import AnalyticsOptOut from "../../components/AnalyticsOptOut";
 import { colors } from "../../theme/colors";
 import SpotlightMark from "../../components/SpotlightMark";
 
@@ -298,6 +299,12 @@ export default function SettingsScreen() {
               thumbColor="#fff"
             />
           </View>
+        </View>
+
+        {/* PRIVACY */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Privacy</Text>
+          <AnalyticsOptOut />
         </View>
 
         {/* DANGER ZONE */}
