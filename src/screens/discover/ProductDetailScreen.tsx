@@ -29,6 +29,7 @@ import VerifiedBadge from "../../components/VerifiedBadge";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
+import { insertAnalytics } from "../../lib/analytics";
 type Route = RouteProp<RootStackParamList, "ProductDetail">;
 type Nav = NativeStackNavigationProp<RootStackParamList, "ProductDetail">;
 
@@ -109,7 +110,7 @@ export default function ProductDetailScreen() {
 
     if (!quiet) try {
       const customerId = await getViewingCustomerId();
-      await supabase.from("analytics_events").insert({
+      await insertAnalytics({
         vendor_id: data.vendor_id, product_id: data.id, event_type: "product_view", customer_id: customerId,
       });
     } catch { /* non-fatal */ }
@@ -144,7 +145,7 @@ export default function ProductDetailScreen() {
     if (!product) return;
     try {
       const customerId = await getViewingCustomerId();
-      await supabase.from("analytics_events").insert({
+      await insertAnalytics({
         vendor_id: product.vendor_id, product_id: product.id, event_type: eventType, customer_id: customerId,
       });
     } catch { /* non-fatal */ }

@@ -33,6 +33,7 @@ import SpotlightMark from "../../components/SpotlightMark";
 import QuoteRequestModal, { QuoteCustomer } from "../../components/QuoteRequestModal";
 import { colors } from "../../theme/colors";
 
+import { insertAnalytics } from "../../lib/analytics";
 type Route = RouteProp<RootStackParamList, "ServiceDetail">;
 type Nav = NativeStackNavigationProp<RootStackParamList, "ServiceDetail">;
 
@@ -114,7 +115,7 @@ export default function ServiceDetailScreen() {
 
     if (!quiet) try {
       const customerId = await getViewingCustomerId();
-      await supabase.from("analytics_events").insert({
+      await insertAnalytics({
         vendor_id: data.vendor_id, service_id: data.id, event_type: "service_view", customer_id: customerId,
       });
     } catch { /* non-fatal */ }
@@ -150,7 +151,7 @@ export default function ServiceDetailScreen() {
     if (!service) return;
     try {
       const customerId = await getViewingCustomerId();
-      await supabase.from("analytics_events").insert({
+      await insertAnalytics({
         vendor_id: service.vendor_id, service_id: service.id, event_type: eventType, customer_id: customerId,
       });
     } catch { /* non-fatal */ }

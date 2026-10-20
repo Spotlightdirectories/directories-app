@@ -28,6 +28,7 @@ import SpotlightMark from "../../components/SpotlightMark";
 import AccountMenu from "../../components/AccountMenu";
 import { colors } from "../../theme/colors";
 
+import { insertAnalytics } from "../../lib/analytics";
 type Route = RouteProp<RootStackParamList, "Results">;
 type Nav = NativeStackNavigationProp<RootStackParamList, "Results">;
 
@@ -44,6 +45,8 @@ type ResultItem = {
   itemSlug?: string;
   price: number | null;
   kind: "product" | "service" | "vendor";
+  vendorId?: string;   // used to record search impressions for the vendor
+  itemId?: string;     // product / service id, same purpose
   lat: number | null;
   lng: number | null;
   distanceKm?: number | null;
@@ -57,6 +60,13 @@ type ResultItem = {
   location?: string | null;
   categoryLabel?: string | null;
 };
+
+async function getViewingCustomerId(): Promise<string | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase.from("customers").select("id").eq("auth_user_id", user.id).maybeSingle();
+  return data?.id || null;
+}
 
 export default function ResultsScreen() {
   const route = useRoute<Route>();
@@ -174,21 +184,21 @@ export default function ResultsScreen() {
 
     let productItems: ResultItem[] = (productsRes.data || []).map((p: any) => ({
       key: `product-${p.id}`, name: p.product_name, vendorName: p.vendor_name, vendorSlug: p.vendor_slug,
-      itemSlug: p.slug,
+      itemSlug: p.slug, vendorId: p.vendor_id, itemId: p.id,
       image: p.primary_image_url || null,
       price: p.price, kind: "product" as const, lat: p.vendor_latitude ?? null, lng: p.vendor_longitude ?? null,
       sponsored: !!p.vendor_is_sponsored,
     }));
     let serviceItems: ResultItem[] = (servicesRes.data || []).map((s: any) => ({
       key: `service-${s.id}`, name: s.service_name, vendorName: s.vendor_name, vendorSlug: s.vendor_slug,
-      itemSlug: s.slug,
+      itemSlug: s.slug, vendorId: s.vendor_id, itemId: s.id,
       image: s.representative_image_url || s.vendor_logo_url || null,
       price: s.starting_price, kind: "service" as const, lat: s.vendor_latitude ?? null, lng: s.vendor_longitude ?? null,
       sponsored: !!s.vendor_is_sponsored,
     }));
     let vendorItems: ResultItem[] = [
       ...(vendorsRes.data || []).map((v: any) => ({
-        key: `vendor-${v.id}`, name: v.name, vendorName: v.name, vendorSlug: v.slug,
+        key: `vendor-${v.id}`, vendorId: v.id, name: v.name, vendorName: v.name, vendorSlug: v.slug,
         image: v.logo_url || null,
         price: null, kind: "vendor" as const, lat: v.latitude ?? null, lng: v.longitude ?? null,
         sponsored: !!v.is_sponsored,
@@ -241,6 +251,24 @@ export default function ResultsScreen() {
     setServices(serviceItems);
     setVendors(vendorItems);
     setLoading(false);
+
+    // Business Insights: one "search impression" per vendor / product / service
+    // actually shown, tagged with the keyword -- same as the website. Skipped
+    // on pull-to-refresh so refreshing never inflates a vendor's numbers.
+    if (!quiet) {
+      (async () => {
+        try {
+          const customerId = await getViewingCustomerId();
+          const base = { event_type: "search_impression", search_keyword: kw || "", customer_id: customerId };
+          const impressions = [
+            ...vendorItems.filter((i) => i.vendorId).map((i) => ({ ...base, vendor_id: i.vendorId })),
+            ...productItems.filter((i) => i.vendorId && i.itemId).map((i) => ({ ...base, vendor_id: i.vendorId, product_id: i.itemId })),
+            ...serviceItems.filter((i) => i.vendorId && i.itemId).map((i) => ({ ...base, vendor_id: i.vendorId, service_id: i.itemId })),
+          ];
+          if (impressions.length) await insertAnalytics(impressions);
+        } catch { /* non-fatal */ }
+      })();
+    }
 
     if (!quiet) logSearch({ keyword: kw, searchType, category, subcategory, state: state || undefined, lga: lga || undefined, verifiedOnly: !!verifiedOnly });
   }

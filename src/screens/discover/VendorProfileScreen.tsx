@@ -35,6 +35,7 @@ import AccountMenu from "../../components/AccountMenu";
 import VerifiedBadge from "../../components/VerifiedBadge";
 import { colors } from "../../theme/colors";
 
+import { insertAnalytics } from "../../lib/analytics";
 type Route = RouteProp<RootStackParamList, "VendorProfile">;
 
 const BRANCH_LIMITS: Record<string, number> = {
@@ -69,7 +70,7 @@ function plainToHtml(text: string): string {
 // Isolated into its own component because useVideoPlayer is a hook --
 // it can't be called conditionally inside VendorProfileScreen itself,
 // so this only mounts once a real video URL exists.
-function VendorVideoPlayer({ uri }: { uri: string }) {
+function VendorVideoPlayer({ uri, onFirstPlay }: { uri: string; onFirstPlay?: () => void }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
   });
@@ -77,6 +78,10 @@ function VendorVideoPlayer({ uri }: { uri: string }) {
   const [playing, setPlaying] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Counts one "video play" per visit (not every pause/resume).
+  const played = useRef(false);
+  const onFirstPlayRef = useRef(onFirstPlay);
+  onFirstPlayRef.current = onFirstPlay;
 
   // Our own simple controls instead of the phone's built-in player
   // bar, which stays on screen ~5 seconds and cannot be shortened.
@@ -91,6 +96,7 @@ function VendorVideoPlayer({ uri }: { uri: string }) {
   useEffect(() => {
     const sub = player.addListener("playingChange", ({ isPlaying }) => {
       setPlaying(isPlaying);
+      if (isPlaying && !played.current) { played.current = true; onFirstPlayRef.current?.(); }
       if (isPlaying) flashControls();
       else { clearTimer(); setShowControls(true); }
     });
@@ -295,7 +301,7 @@ export default function VendorProfileScreen() {
     // Same as the website: record one profile view per visit, visitors only.
     if (!owner && viewLoggedFor.current !== v.id) {
       viewLoggedFor.current = v.id;
-      supabase.from("analytics_events").insert({ vendor_id: v.id, event_type: "profile_view" }).then(() => {});
+      insertAnalytics({ vendor_id: v.id, event_type: "profile_view" }).then(() => {});
     }
     if (v.plan_tier === "free" && v.trial_started_at) {
       const days = Math.floor((Date.now() - new Date(v.trial_started_at).getTime()) / (1000 * 60 * 60 * 24));
@@ -403,7 +409,7 @@ export default function VendorProfileScreen() {
   // Same behaviour as the website's logEvent. Never blocks the action.
   async function logEvent(eventType: string) {
     if (!vendor) return;
-    try { await supabase.from("analytics_events").insert({ vendor_id: vendor.id, event_type: eventType }); }
+    try { await insertAnalytics({ vendor_id: vendor.id, event_type: eventType }); }
     catch { /* non-fatal */ }
     if (eventType === "phone_click" || eventType === "whatsapp_click") {
       try {
@@ -1017,7 +1023,7 @@ export default function VendorProfileScreen() {
         {videoUrl && !isOwner && (
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Business Video</Text>
-            <VendorVideoPlayer uri={videoUrl} />
+            <VendorVideoPlayer uri={videoUrl} onFirstPlay={() => logEvent("video_play")} />
           </View>
         )}
 

@@ -312,6 +312,12 @@ export default function DashboardHomeScreen() {
         ))}
       </View>
 
+      {/* BUSINESS INSIGHTS -- one long button; becomes a regular tile if another button is ever added */}
+      <TouchableOpacity style={styles.insightsBtn} onPress={() => navigation.navigate("Insights")}>
+        <FontAwesome6 name="chart-line" size={16} color={colors.primary} />
+        <Text style={styles.insightsBtnText}>Business Insights</Text>
+      </TouchableOpacity>
+
       {/* PROFILE DROPDOWN — Preferences / Performance / Logout */}
       <Modal visible={profileMenuOpen} animationType="fade" transparent onRequestClose={() => setProfileMenuOpen(false)}>
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setProfileMenuOpen(false)}>
@@ -320,7 +326,7 @@ export default function DashboardHomeScreen() {
               <FontAwesome6 name="sliders" size={14} color={colors.white} />
               <Text style={styles.menuItemText}>Preferences</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.menuItem} onPress={() => handlePlaceholder("Performance")}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setProfileMenuOpen(false); navigation.navigate("Insights"); }}>
               <FontAwesome6 name="chart-line" size={14} color={colors.white} />
               <Text style={styles.menuItemText}>Performance</Text>
             </TouchableOpacity>
@@ -380,6 +386,8 @@ const styles = StyleSheet.create({
   tile: { width: "31%", backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 16, alignItems: "center" },
   tileBadge: { position: "absolute", top: 6, right: 8, backgroundColor: colors.primary, borderRadius: 999, minWidth: 18, height: 18, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
   tileBadgeText: { color: "#000", fontSize: 10, fontWeight: "800" },
+  insightsBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, backgroundColor: colors.black, borderWidth: 1.5, borderColor: colors.primary, borderRadius: 10, paddingVertical: 14, marginTop: 12 },
+  insightsBtnText: { color: colors.white, fontSize: 14, fontWeight: "700" },
   tileLabel: { color: colors.white, fontSize: 11, fontWeight: "600", marginTop: 8, textAlign: "center" },
 
   menuOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "flex-end", paddingTop: 95, paddingRight: 20 },
