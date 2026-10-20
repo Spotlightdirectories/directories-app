@@ -10,6 +10,7 @@
 
 import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ActivityIndicator } from "react-native";
+import { KeyboardAvoidingView as KAV, ScrollView } from "react-native";
 import { supabase } from "../lib/supabase";
 import { colors } from "../theme/colors";
 
@@ -96,12 +97,13 @@ export default function AiDescribeModal({ visible, type, itemName, onClose, onGe
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KAV style={styles.overlay} behavior="padding">
         <View style={styles.card}>
           <View style={styles.headerRow}>
             <Text style={styles.title}>{TITLE_MAP[type]}</Text>
             <TouchableOpacity onPress={onClose}><Text style={styles.close}>×</Text></TouchableOpacity>
           </View>
+          <ScrollView keyboardShouldPersistTaps="handled" style={{ flexShrink: 1 }}>
           <Text style={styles.subtext}>A few short details help write something specific to you, not generic filler.</Text>
 
           <Text style={styles.label}>{config.q1.label}</Text>
@@ -121,8 +123,9 @@ export default function AiDescribeModal({ visible, type, itemName, onClose, onGe
           <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} disabled={submitting}>
             {submitting ? <ActivityIndicator color={colors.black} /> : <Text style={styles.submitText}>Generate</Text>}
           </TouchableOpacity>
+          </ScrollView>
         </View>
-      </View>
+      </KAV>
     </Modal>
   );
 }

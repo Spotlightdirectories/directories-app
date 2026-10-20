@@ -16,6 +16,8 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Image, Linking, Modal, TextInput, Alert, KeyboardAvoidingView } from "react-native";
+import { KeyboardAvoidingView as KAV } from "react-native";
+import KeyboardAwareScroll from "../../components/KeyboardAwareScroll";
 import * as ImagePicker from "expo-image-picker";
 import { File } from "expo-file-system";
 import { FontAwesome6 } from "@expo/vector-icons";
@@ -238,6 +240,9 @@ export default function VendorProfileScreen() {
   const [trialActive, setTrialActive] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const firstFocus = useRef(true);
+  // Which vendor we already counted a profile view for, so pulling to
+  // refresh or coming back to the screen does not count extra views.
+  const viewLoggedFor = useRef<string | null>(null);
   // Re-read the profile whenever the person comes back to this screen
   // (e.g. after upgrading their plan on the website), so plan limits,
   // video and other details are never stale.
@@ -285,7 +290,13 @@ export default function VendorProfileScreen() {
     const { data: v } = await supabase.from("vendors").select("*").eq("slug", slug).maybeSingle();
     if (!v) { setLoading(false); return; }
     setVendor(v);
-    setIsOwner(!!(user && v.auth_user_id === user.id));
+    const owner = !!(user && v.auth_user_id === user.id);
+    setIsOwner(owner);
+    // Same as the website: record one profile view per visit, visitors only.
+    if (!owner && viewLoggedFor.current !== v.id) {
+      viewLoggedFor.current = v.id;
+      supabase.from("analytics_events").insert({ vendor_id: v.id, event_type: "profile_view" }).then(() => {});
+    }
     if (v.plan_tier === "free" && v.trial_started_at) {
       const days = Math.floor((Date.now() - new Date(v.trial_started_at).getTime()) / (1000 * 60 * 60 * 24));
       setTrialActive(days <= 90);
@@ -794,7 +805,7 @@ export default function VendorProfileScreen() {
   const visiblePortfolio = showAllPortfolio ? portfolioItems : portfolioItems.slice(0, 3);
 
   return (
-    <ScrollView ref={scrollRef} refreshControl={refreshControl} style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
+    <KeyboardAwareScroll ref={scrollRef} refreshControl={refreshControl} style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>‹ Back</Text>
@@ -1234,8 +1245,8 @@ export default function VendorProfileScreen() {
 
       {/* VISIT REQUEST MODAL */}
       <Modal visible={visitModalOpen} animationType="slide" transparent onRequestClose={() => setVisitModalOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+        <KAV style={styles.modalOverlay} behavior="padding">
+          <ScrollView style={[styles.modalCard, { flexGrow: 0 }]} keyboardShouldPersistTaps="handled" bounces={false}>
             {visitSubmitted ? (
               <>
                 <Text style={styles.modalTitle}>Request Sent</Text>
@@ -1261,14 +1272,14 @@ export default function VendorProfileScreen() {
                 </View>
               </>
             )}
-          </View>
-        </View>
+          </ScrollView>
+        </KAV>
       </Modal>
 
       {/* REVIEW MODAL */}
       <Modal visible={reviewModalOpen} animationType="slide" transparent onRequestClose={() => setReviewModalOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+        <KAV style={styles.modalOverlay} behavior="padding">
+          <ScrollView style={[styles.modalCard, { flexGrow: 0 }]} keyboardShouldPersistTaps="handled" bounces={false}>
             <Text style={styles.modalTitle}>Leave a Review</Text>
             <View style={styles.starPicker}>
               {[1, 2, 3, 4, 5].map((n) => (
@@ -1286,10 +1297,10 @@ export default function VendorProfileScreen() {
                 <Text style={styles.modalSubmitText}>{submittingReview ? "Submitting..." : "Submit Review"}</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          </ScrollView>
+        </KAV>
       </Modal>
-    </ScrollView>
+    </KeyboardAwareScroll>
   );
 }
 

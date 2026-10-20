@@ -11,6 +11,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, Image, Modal, Switch } from "react-native";
+import { KeyboardAvoidingView as KAV } from "react-native";
 import * as Location from "expo-location";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useRoute, useNavigation } from "@react-navigation/native";
@@ -401,7 +402,7 @@ export default function ResultsScreen() {
       </TouchableOpacity>
 
       <Modal visible={filtersOpen} animationType="slide" transparent onRequestClose={() => setFiltersOpen(false)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>More Filters</Text>
             <Text style={styles.filterLabel}>State</Text>
@@ -447,11 +448,11 @@ export default function ResultsScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       <Modal visible={statePickerOpen} animationType="slide" transparent onRequestClose={() => setStatePickerOpen(false)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select State</Text>
             <TextInput style={styles.pickerSearchInput} placeholder="Search states..." placeholderTextColor={colors.textSecondary} value={stateSearch} onChangeText={setStateSearch} autoFocus />
@@ -464,11 +465,11 @@ export default function ResultsScreen() {
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       <Modal visible={lgaPickerOpen} animationType="slide" transparent onRequestClose={() => setLgaPickerOpen(false)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select LGA</Text>
             <TextInput style={styles.pickerSearchInput} placeholder="Search LGAs..." placeholderTextColor={colors.textSecondary} value={lgaSearch} onChangeText={setLgaSearch} autoFocus />
@@ -481,7 +482,7 @@ export default function ResultsScreen() {
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       {loading ? (

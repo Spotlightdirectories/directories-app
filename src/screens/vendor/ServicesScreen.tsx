@@ -23,6 +23,8 @@
 
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Image, Modal, FlatList, Alert } from "react-native";
+import { KeyboardAvoidingView as KAV } from "react-native";
+import KeyboardAwareScroll from "../../components/KeyboardAwareScroll";
 import { FontAwesome6 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
@@ -464,7 +466,7 @@ export default function ServicesScreen() {
 
       {aiToast && <View style={styles.toast}><Text style={styles.toastText}>{aiToast}</Text></View>}
 
-      <ScrollView refreshControl={refreshControl} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+      <KeyboardAwareScroll refreshControl={refreshControl} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
         <Text style={styles.title}>Service Offerings</Text>
         <Text style={styles.subtitle}>Add and manage the services your business provides.</Text>
         <Text style={styles.helperText}>Choose a category and subcategory — the subcategory name becomes your service's name. Custom names aren't used, so listings stay consistent and easy to search.</Text>
@@ -566,10 +568,10 @@ export default function ServicesScreen() {
             <Text style={styles.saveBtnText}>{saving ? (editingId ? "Updating..." : "Saving...") : editingId ? "Update Service" : "Save Services"}</Text>
           </TouchableOpacity>
         )}
-      </ScrollView>
+      </KeyboardAwareScroll>
 
       <Modal visible={categoryPickerOpen} animationType="slide" transparent onRequestClose={() => setCategoryPickerOpen(false)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select Category</Text>
             <TextInput style={styles.searchInput} placeholder="Search categories..." placeholderTextColor={colors.textSecondary} value={categorySearch} onChangeText={setCategorySearch} autoFocus />
@@ -580,11 +582,11 @@ export default function ServicesScreen() {
             )} ListEmptyComponent={<Text style={styles.noResults}>No matching categories.</Text>} />
             <TouchableOpacity style={styles.closeBtn} onPress={() => { setCategoryPickerOpen(false); setCategorySearch(""); }}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       <Modal visible={subcategoryPickerOpen} animationType="slide" transparent onRequestClose={() => setSubcategoryPickerOpen(false)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select Subcategory</Text>
             <TextInput style={styles.searchInput} placeholder="Search subcategories..." placeholderTextColor={colors.textSecondary} value={subcategorySearch} onChangeText={setSubcategorySearch} autoFocus />
@@ -598,11 +600,11 @@ export default function ServicesScreen() {
             }} ListEmptyComponent={<Text style={styles.noResults}>No matching subcategories.</Text>} />
             <TouchableOpacity style={styles.closeBtn} onPress={() => { setSubcategoryPickerOpen(false); setSubcategorySearch(""); }}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       <Modal visible={subSubPickerOpen} animationType="slide" transparent onRequestClose={() => setSubSubPickerOpen(false)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select Specific Type</Text>
             <TextInput style={styles.searchInput} placeholder="Search..." placeholderTextColor={colors.textSecondary} value={subSubSearch} onChangeText={setSubSubSearch} autoFocus />
@@ -616,11 +618,11 @@ export default function ServicesScreen() {
             }} ListEmptyComponent={<Text style={styles.noResults}>No matching options.</Text>} />
             <TouchableOpacity style={styles.closeBtn} onPress={() => { setSubSubPickerOpen(false); setSubSubSearch(""); }}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       <Modal visible={!!attrPickerOpen} animationType="slide" transparent onRequestClose={() => setAttrPickerOpen(null)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>{activeAttrDef?.label || "Select"}</Text>
             <FlatList data={activeAttrDef?.options || []} keyExtractor={(o) => o} renderItem={({ item }) => (
@@ -630,7 +632,7 @@ export default function ServicesScreen() {
             )} />
             <TouchableOpacity style={styles.closeBtn} onPress={() => setAttrPickerOpen(null)}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       <AiDescribeModal

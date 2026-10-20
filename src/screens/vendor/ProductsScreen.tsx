@@ -11,6 +11,8 @@
 
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Image, Modal, FlatList, Alert } from "react-native";
+import { KeyboardAvoidingView as KAV } from "react-native";
+import KeyboardAwareScroll from "../../components/KeyboardAwareScroll";
 import { FontAwesome6 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
@@ -431,7 +433,7 @@ export default function ProductsScreen() {
 
       {aiToast && <View style={styles.toast}><Text style={styles.toastText}>{aiToast}</Text></View>}
 
-      <ScrollView refreshControl={refreshControl} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+      <KeyboardAwareScroll refreshControl={refreshControl} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
         <Text style={styles.title}>Product Catalogue</Text>
         <Text style={styles.subtitle}>Add and manage the products your business sells.</Text>
         <Text style={styles.limitText}>Your current plan allows up to {currentLimit} products. ({totalCount} used)</Text>
@@ -537,10 +539,10 @@ export default function ProductsScreen() {
             <Text style={styles.saveBtnText}>{saving ? (editingId ? "Updating..." : "Saving...") : editingId ? "Update Product" : "Save Products"}</Text>
           </TouchableOpacity>
         )}
-      </ScrollView>
+      </KeyboardAwareScroll>
 
       <Modal visible={categoryPickerOpen} animationType="slide" transparent onRequestClose={() => setCategoryPickerOpen(false)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select Category</Text>
             <TextInput
@@ -560,11 +562,11 @@ export default function ProductsScreen() {
             />
             <TouchableOpacity style={styles.closeBtn} onPress={() => { setCategoryPickerOpen(false); setCategorySearch(""); }}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       <Modal visible={subcategoryPickerOpen} animationType="slide" transparent onRequestClose={() => setSubcategoryPickerOpen(false)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select Subcategory</Text>
             <TextInput
@@ -584,11 +586,11 @@ export default function ProductsScreen() {
             />
             <TouchableOpacity style={styles.closeBtn} onPress={() => { setSubcategoryPickerOpen(false); setSubcategorySearch(""); }}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       <Modal visible={subSubPickerOpen} animationType="slide" transparent onRequestClose={() => setSubSubPickerOpen(false)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select Specific Type</Text>
             <TextInput
@@ -608,11 +610,11 @@ export default function ProductsScreen() {
             />
             <TouchableOpacity style={styles.closeBtn} onPress={() => { setSubSubPickerOpen(false); setSubSubSearch(""); }}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       <Modal visible={!!attrPickerOpen} animationType="slide" transparent onRequestClose={() => setAttrPickerOpen(null)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>{activeAttrDef?.label || "Select"}</Text>
             <FlatList data={activeAttrDef?.options || []} keyExtractor={(o) => o} renderItem={({ item }) => (
@@ -622,7 +624,7 @@ export default function ProductsScreen() {
             )} />
             <TouchableOpacity style={styles.closeBtn} onPress={() => setAttrPickerOpen(null)}><Text style={styles.closeBtnText}>Close</Text></TouchableOpacity>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       <AiDescribeModal

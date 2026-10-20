@@ -161,6 +161,10 @@ export default function DashboardHomeScreen() {
       navigation.navigate("VisitRequestsReceived");
       return;
     }
+    if (key === "settings") {
+      navigation.navigate("Settings");
+      return;
+    }
     Alert.alert("Coming soon", "This section is being built next.");
   }
 
@@ -312,7 +316,7 @@ export default function DashboardHomeScreen() {
       <Modal visible={profileMenuOpen} animationType="fade" transparent onRequestClose={() => setProfileMenuOpen(false)}>
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setProfileMenuOpen(false)}>
           <View style={styles.menuCard}>
-            <TouchableOpacity style={styles.menuItem} onPress={() => handlePlaceholder("Preferences")}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setProfileMenuOpen(false); navigation.navigate("Settings"); }}>
               <FontAwesome6 name="sliders" size={14} color={colors.white} />
               <Text style={styles.menuItemText}>Preferences</Text>
             </TouchableOpacity>

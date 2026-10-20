@@ -21,6 +21,8 @@
 
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Switch, Modal, FlatList, Image } from "react-native";
+import { KeyboardAvoidingView as KAV } from "react-native";
+import KeyboardAwareScroll from "../components/KeyboardAwareScroll";
 import { FontAwesome6 } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
@@ -228,7 +230,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+    <KeyboardAwareScroll style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={styles.topRow}>
         <View style={{ flex: 1 }} />
         <AccountMenu />
@@ -343,7 +345,7 @@ export default function HomeScreen() {
 
       {/* MORE FILTERS MODAL — shared by both paths */}
       <Modal visible={filtersOpen} animationType="slide" transparent onRequestClose={() => setFiltersOpen(false)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>More Filters</Text>
 
@@ -396,11 +398,11 @@ export default function HomeScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       <Modal visible={statePickerOpen} animationType="slide" transparent onRequestClose={() => setStatePickerOpen(false)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select State</Text>
             <TextInput
@@ -422,11 +424,11 @@ export default function HomeScreen() {
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KAV>
       </Modal>
 
       <Modal visible={lgaPickerOpen} animationType="slide" transparent onRequestClose={() => setLgaPickerOpen(false)}>
-        <View style={styles.modalOverlay}>
+        <KAV style={styles.modalOverlay} behavior="padding">
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select LGA</Text>
             <TextInput
@@ -448,9 +450,9 @@ export default function HomeScreen() {
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KAV>
       </Modal>
-    </ScrollView>
+    </KeyboardAwareScroll>
   );
 }
 

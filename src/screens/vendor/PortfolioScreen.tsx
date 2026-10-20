@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Alert } from "react-native";
+import KeyboardAwareScroll from "../../components/KeyboardAwareScroll";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../../lib/supabase";
@@ -232,7 +233,7 @@ export default function PortfolioScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView refreshControl={refreshControl} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
+      <KeyboardAwareScroll refreshControl={refreshControl} contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
         <Text style={styles.title}>Portfolio</Text>
         <Text style={styles.subtitle}>Showcase past work for prospects — a CV for your business. Up to {PORTFOLIO_LIMIT} items, shown 2 at a time on your public profile with a "See More" to reveal the rest.</Text>
         <Text style={styles.limitText}>{totalCount} / {PORTFOLIO_LIMIT} used</Text>
@@ -331,7 +332,7 @@ export default function PortfolioScreen() {
             <Text style={styles.saveBtnText}>{saving ? (editingId ? "Updating..." : "Saving...") : editingId ? "Update Item" : "Save Portfolio"}</Text>
           </TouchableOpacity>
         )}
-      </ScrollView>
+      </KeyboardAwareScroll>
     </View>
   );
 }

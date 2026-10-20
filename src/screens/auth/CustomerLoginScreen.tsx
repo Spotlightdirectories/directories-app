@@ -11,6 +11,7 @@
 
 import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import KeyboardAwareScroll from "../../components/KeyboardAwareScroll";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -62,7 +63,7 @@ export default function CustomerLoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAwareScroll style={{ flex: 1, backgroundColor: colors.dark }} contentContainerStyle={{ flexGrow: 1, padding: 24, paddingTop: 50 }}>
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>‹ Back</Text>
@@ -108,7 +109,7 @@ export default function CustomerLoginScreen() {
           <Text style={styles.footerLink}>Don't have an account? Sign up</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAwareScroll>
   );
 }
 

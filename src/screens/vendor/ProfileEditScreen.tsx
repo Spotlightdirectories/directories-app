@@ -16,6 +16,7 @@ import {
   View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator,
   Alert, Modal, FlatList, KeyboardAvoidingView, Platform, Linking,
 } from "react-native";
+import KeyboardAwareScroll from "../../components/KeyboardAwareScroll";
 import { FontAwesome6 } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
@@ -227,7 +228,7 @@ export default function ProfileEditScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.dark }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScroll style={styles.container} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => navigation.goBack()}><Text style={styles.back}>‹ Back</Text></TouchableOpacity>
           <SpotlightMark size={22} />
@@ -343,7 +344,7 @@ export default function ProfileEditScreen() {
         <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} disabled={saving} onPress={handleSave}>
           <Text style={styles.saveText}>{saving ? "Saving..." : "Save Changes"}</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </KeyboardAwareScroll>
 
       {/* STATE / LGA PICKER */}
       <Modal visible={picker !== null} animationType="slide" transparent onRequestClose={() => setPicker(null)}>

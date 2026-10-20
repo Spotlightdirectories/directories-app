@@ -298,7 +298,7 @@ export default function QuoteRequestModal({ visible, onClose, customer, vendorId
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
-      <KeyboardAvoidingView style={[styles.overlay, submitted && { justifyContent: "center", paddingHorizontal: 20 }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <KeyboardAvoidingView style={[styles.overlay, submitted && { justifyContent: "center", paddingHorizontal: 20 }]} behavior="padding">
         <View style={[styles.card, submitted ? { borderRadius: 16, paddingBottom: 20 } : { paddingBottom: 56 }]}>
           {submitted ? (
             <>
@@ -313,7 +313,7 @@ export default function QuoteRequestModal({ visible, onClose, customer, vendorId
           ) : (
             <>
               <Text style={styles.title}>Request a Quote</Text>
-              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ maxHeight: 520 }}>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ flexShrink: 1 }}>
                 <Text style={styles.text}>
                   Tell {vendorName || "the vendor"} what you need for “{serviceName}” and they will contact you with a quote. Sending this does not commit you to anything.
                 </Text>

@@ -27,6 +27,7 @@ import ServicesScreen from "../screens/vendor/ServicesScreen";
 import PortfolioScreen from "../screens/vendor/PortfolioScreen";
 import VisitRequestsReceivedScreen from "../screens/vendor/VisitRequestsReceivedScreen";
 import ProfileEditScreen from "../screens/vendor/ProfileEditScreen";
+import SettingsScreen from "../screens/vendor/SettingsScreen";
 
 export type RootStackParamList = {
   Home: undefined;
@@ -68,6 +69,7 @@ export type RootStackParamList = {
   Portfolio: undefined;
   VisitRequestsReceived: undefined;
   ProfileEdit: undefined;
+  Settings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -99,6 +101,7 @@ export default function RootNavigator() {
       <Stack.Screen name="Portfolio" component={PortfolioScreen} />
       <Stack.Screen name="VisitRequestsReceived" component={VisitRequestsReceivedScreen} />
       <Stack.Screen name="ProfileEdit" component={ProfileEditScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
     </Stack.Navigator>
   );
 }

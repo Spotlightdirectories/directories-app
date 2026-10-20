@@ -19,6 +19,8 @@
 
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Image, Linking, Share, FlatList, Modal, TextInput } from "react-native";
+import { KeyboardAvoidingView as KAV } from "react-native";
+import KeyboardAwareScroll from "../../components/KeyboardAwareScroll";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useRoute, useNavigation } from "@react-navigation/native";
 import type { RouteProp } from "@react-navigation/native";
@@ -226,7 +228,7 @@ export default function ServiceDetailScreen() {
   const visibleBullets = hasImage && !descExpanded ? bullets.slice(0, 2) : bullets;
 
   return (
-    <ScrollView refreshControl={refreshControl} style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
+    <KeyboardAwareScroll refreshControl={refreshControl} style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.back}>‹ Back</Text>
@@ -391,8 +393,8 @@ export default function ServiceDetailScreen() {
 
       {/* VISIT REQUEST MODAL */}
       <Modal visible={visitModalOpen} animationType="slide" transparent onRequestClose={() => setVisitModalOpen(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+        <KAV style={styles.modalOverlay} behavior="padding">
+          <ScrollView style={[styles.modalCard, { flexGrow: 0 }]} keyboardShouldPersistTaps="handled" bounces={false}>
             {visitSubmitted ? (
               <>
                 <Text style={styles.modalTitle}>Request Sent</Text>
@@ -418,10 +420,10 @@ export default function ServiceDetailScreen() {
                 </View>
               </>
             )}
-          </View>
-        </View>
+          </ScrollView>
+        </KAV>
       </Modal>
-    </ScrollView>
+    </KeyboardAwareScroll>
   );
 }
 
