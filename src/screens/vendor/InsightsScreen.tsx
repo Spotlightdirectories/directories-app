@@ -253,6 +253,47 @@ function growthText(g: Growth) {
   return `${g.up ? "▲" : "▼"} ${g.growth}${g.growth !== "NEW" ? "%" : ""}`;
 }
 
+// Half-circle "meter" like the website's, drawn with plain Views (no extra
+// native library needed): 36 small bars along a 180-degree arc, coloured
+// red -> gold -> green, filled up to the score and grey beyond it.
+function lerp(a: number, b: number, t: number) { return Math.round(a + (b - a) * t); }
+function gaugeColor(t: number) {
+  const red = [217, 48, 37], gold = [230, 184, 0], green = [30, 142, 62];
+  const [from, to, k] = t < 0.5 ? [red, gold, t / 0.5] : [gold, green, (t - 0.5) / 0.5];
+  return `rgb(${lerp(from[0], to[0], k)},${lerp(from[1], to[1], k)},${lerp(from[2], to[2], k)})`;
+}
+
+function HealthGauge({ score }: { score: number }) {
+  const W = 230, H = 135, cx = W / 2, cy = 118, r = 98, N = 36, barW = 7, barH = 18;
+  const pct = Math.max(0, Math.min(1, score / 100));
+  return (
+    <View style={{ width: W, height: H, alignSelf: "center" }}>
+      {Array.from({ length: N }).map((_, i) => {
+        const t = i / (N - 1);
+        const theta = Math.PI - t * Math.PI; // 180deg -> 0deg
+        const x = cx + r * Math.cos(theta) - barW / 2;
+        const y = cy - r * Math.sin(theta) - barH / 2;
+        const rot = 90 - (theta * 180) / Math.PI;
+        const filled = t <= pct + 0.0001 && score > 0;
+        return (
+          <View
+            key={i}
+            style={{
+              position: "absolute", left: x, top: y, width: barW, height: barH, borderRadius: 3,
+              backgroundColor: filled ? gaugeColor(t) : "#2d2d2d",
+              transform: [{ rotate: `${rot}deg` }],
+            }}
+          />
+        );
+      })}
+      <View style={{ position: "absolute", left: 0, right: 0, top: 56, alignItems: "center" }}>
+        <Text style={styles.healthNum}>{score}</Text>
+        <Text style={styles.healthOf}>/100</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function InsightsScreen() {
   const navigation = useNavigation();
   const [vendorId, setVendorId] = useState<string | null>(null);
@@ -440,9 +481,10 @@ export default function InsightsScreen() {
         <Text style={styles.cardTitle}>Business Health Score</Text>
         {!health ? <Loading /> : (
           <>
-            <View style={{ alignItems: "center", marginBottom: 12 }}>
-              <Text style={styles.healthNum}>{health.total}<Text style={styles.healthOf}> / 100</Text></Text>
+            <HealthGauge score={health.total} />
+            <View style={{ alignItems: "center", marginTop: 4, marginBottom: 14 }}>
               <Text style={[styles.healthLabel, { color: health.total >= 60 ? colors.success : health.total >= 40 ? colors.primary : colors.error }]}>{healthLabelFor(health.total)}</Text>
+              <Text style={styles.healthStars}>{"★".repeat(Math.max(1, Math.min(5, Math.round(health.total / 20))))}<Text style={{ color: "#3a3a3a" }}>{"★".repeat(5 - Math.max(1, Math.min(5, Math.round(health.total / 20))))}</Text></Text>
             </View>
             {health.items.map((it) => (
               <View key={it.label} style={{ marginBottom: 8 }}>
@@ -699,8 +741,9 @@ const styles = StyleSheet.create({
   listValue: { color: colors.textSecondary, fontSize: 12 },
   track: { height: 5, backgroundColor: "#262626", borderRadius: 3, overflow: "hidden" },
   fill: { height: 5, backgroundColor: colors.primary, borderRadius: 3 },
-  healthNum: { color: colors.white, fontSize: 44, fontWeight: "800" },
-  healthOf: { color: colors.textSecondary, fontSize: 16, fontWeight: "600" },
+  healthNum: { color: colors.white, fontSize: 40, fontWeight: "800", lineHeight: 44 },
+  healthStars: { color: colors.primary, fontSize: 18, letterSpacing: 2, marginTop: 4 },
+  healthOf: { color: colors.textSecondary, fontSize: 13, fontWeight: "600" },
   healthLabel: { fontSize: 14, fontWeight: "700", marginTop: 2 },
   coachItem: { borderBottomWidth: 1, borderBottomColor: "#1f1f1f" },
   coachHead: { flexDirection: "row", alignItems: "center", paddingVertical: 10, gap: 10 },
