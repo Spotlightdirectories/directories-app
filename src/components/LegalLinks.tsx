@@ -9,6 +9,8 @@ export default function LegalLinks() {
       <TouchableOpacity onPress={() => openWebPage("/privacy")}><Text style={styles.link}>Privacy Policy</Text></TouchableOpacity>
       <Text style={styles.dot}>•</Text>
       <TouchableOpacity onPress={() => openWebPage("/terms")}><Text style={styles.link}>Terms</Text></TouchableOpacity>
+      <Text style={styles.dot}>•</Text>
+      <TouchableOpacity onPress={() => openWebPage("/delete-account")}><Text style={styles.link}>Delete account</Text></TouchableOpacity>
     </View>
   );
 }

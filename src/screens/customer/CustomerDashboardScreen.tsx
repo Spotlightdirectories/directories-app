@@ -8,7 +8,7 @@
 // ===============================================================
 
 import { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Alert } from "react-native";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -37,7 +37,11 @@ const CARDS = [
 export default function CustomerDashboardScreen() {
   const navigation = useNavigation<Nav>();
   const [loading, setLoading] = useState(true);
-  const [customer, setCustomer] = useState<{ id: string; name: string | null; email: string | null } | null>(null);
+  const [customer, setCustomer] = useState<{ id: string; name: string | null; email: string | null; account_status?: string | null; scheduled_deletion_at?: string | null } | null>(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [hasVendorAccount, setHasVendorAccount] = useState(false);
   const [counts, setCounts] = useState({ favorites: 0, viewed: 0, inquiries: 0, visits: 0, quotes: 0, reviews: 0, searches: 0 });
   const [unreadVisitReplies, setUnreadVisitReplies] = useState(0);
@@ -46,7 +50,7 @@ export default function CustomerDashboardScreen() {
   async function load() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
-    const { data: c } = await supabase.from("customers").select("id, name, email").eq("auth_user_id", user.id).maybeSingle();
+    const { data: c } = await supabase.from("customers").select("id, name, email, account_status, scheduled_deletion_at").eq("auth_user_id", user.id).maybeSingle();
     if (!c) { setLoading(false); return; }
     setCustomer(c);
 
@@ -90,6 +94,27 @@ export default function CustomerDashboardScreen() {
   useFocusEffect(useCallback(() => { load(); }, []));
   const { refreshControl } = usePullRefresh(load);
 
+  // Account deletion: 14 days to change your mind, then everything is deleted.
+  async function handleCloseAccount() {
+    if (!customer?.email || !deletePassword) { setDeleteError("Please enter your password."); return; }
+    setDeleteBusy(true); setDeleteError("");
+    const { error: pwError } = await supabase.auth.signInWithPassword({ email: customer.email, password: deletePassword });
+    if (pwError) { setDeleteError("That password is not correct."); setDeleteBusy(false); return; }
+    const { data, error } = await supabase.rpc("close_customer_account");
+    setDeleteBusy(false);
+    if (error) { setDeleteError("We couldn't start the deletion. Please try again."); return; }
+    setCustomer((c) => (c ? { ...c, account_status: "closing", scheduled_deletion_at: (data as string) || null } : c));
+    setShowDelete(false); setDeletePassword("");
+  }
+
+  async function handleRestoreAccount() {
+    setDeleteBusy(true);
+    const { error } = await supabase.rpc("restore_customer_account");
+    setDeleteBusy(false);
+    if (error) { Alert.alert("We couldn't restore your account", "Please contact support."); return; }
+    setCustomer((c) => (c ? { ...c, account_status: "active", scheduled_deletion_at: null } : c));
+  }
+
   // Replaces the old "Back to Home" link, which just landed on the
   // login screen (there is no home to go back to once signed in).
   async function handleLogout() {
@@ -111,6 +136,18 @@ export default function CustomerDashboardScreen() {
       </View>
       <Text style={styles.name}>{customer.name || "My Account"}</Text>
       <Text style={styles.email}>{customer.email || ""}</Text>
+
+      {customer.account_status === "closing" && (
+        <View style={{ backgroundColor: "#141414", borderWidth: 1, borderColor: "#f0b86e", borderRadius: 10, padding: 14, marginBottom: 20 }}>
+          <Text style={{ color: colors.white, fontWeight: "700", fontSize: 14 }}>Your account is scheduled for deletion.</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 6 }}>
+            On {customer.scheduled_deletion_at ? new Date(customer.scheduled_deletion_at).toLocaleDateString("en-NG", { dateStyle: "long" }) : "the scheduled date"} everything will be permanently deleted. Until then you can change your mind.
+          </Text>
+          <TouchableOpacity disabled={deleteBusy} onPress={handleRestoreAccount} style={{ backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 10, alignItems: "center", marginTop: 10 }}>
+            <Text style={{ color: "#000", fontWeight: "700" }}>{deleteBusy ? "Please wait..." : "Keep my account"}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {hasVendorAccount && (
         <View style={styles.vendorBanner}>
@@ -141,6 +178,32 @@ export default function CustomerDashboardScreen() {
       <View style={{ backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, marginTop: 14 }}>
         <AnalyticsOptOut />
         <LegalLinks />
+        {customer.account_status !== "closing" && (
+          <View style={{ marginTop: 18, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 14 }}>
+            <Text style={{ color: colors.white, fontWeight: "700", fontSize: 14 }}>Delete my account</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 6 }}>
+              You have 14 days to change your mind. After that, your account and everything in it is permanently deleted: your name, email, phone number, favourites, reviews, requests, photos and search history. We keep nothing that identifies you.
+            </Text>
+            {!showDelete ? (
+              <TouchableOpacity onPress={() => setShowDelete(true)} style={{ borderWidth: 1, borderColor: "#e5484d", borderRadius: 8, paddingVertical: 10, alignItems: "center", marginTop: 10 }}>
+                <Text style={{ color: "#e5484d", fontWeight: "700" }}>Delete my account</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ marginTop: 10 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 6 }}>Enter your password to confirm</Text>
+                <TextInput value={deletePassword} onChangeText={setDeletePassword} secureTextEntry autoCapitalize="none" placeholderTextColor="#777"
+                  style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 10, color: colors.white }} />
+                {!!deleteError && <Text style={{ color: "#e5484d", fontSize: 12, marginTop: 6 }}>{deleteError}</Text>}
+                <TouchableOpacity disabled={deleteBusy} onPress={handleCloseAccount} style={{ backgroundColor: "#e5484d", borderRadius: 8, paddingVertical: 10, alignItems: "center", marginTop: 10 }}>
+                  <Text style={{ color: "#fff", fontWeight: "700" }}>{deleteBusy ? "Please wait..." : "Yes, delete my account"}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity disabled={deleteBusy} onPress={() => { setShowDelete(false); setDeletePassword(""); setDeleteError(""); }} style={{ alignItems: "center", marginTop: 10 }}>
+                  <Text style={{ color: colors.textSecondary }}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
       </View>
     </ScrollView>
   );
