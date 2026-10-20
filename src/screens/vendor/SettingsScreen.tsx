@@ -142,7 +142,7 @@ export default function SettingsScreen() {
   function confirmClose() {
     Alert.alert(
       "Close your account?",
-      "Your profile will be removed immediately and permanently deleted after 14 days.\n\nClosing your account does NOT cancel or refund any active subscription. All payments are final.",
+      "Your listing is hidden immediately. You have 14 days to change your mind and restore it. After that the closure is final, and within 30 more days all your data is permanently erased: profile, products, services, photos, videos, documents, contact details and login.\n\nWe keep only subscription invoices and payment receipts, which we must retain for accounting and reporting.\n\nClosing your account does NOT cancel or refund any active subscription. All payments are final.",
       [
         { text: "Cancel", style: "cancel" },
         { text: "Close Account", style: "destructive", onPress: doClose },
@@ -317,7 +317,7 @@ export default function SettingsScreen() {
             <Text style={styles.note}>
               Closing your account will immediately disable your vendor access and remove your public profile from Spotlight. Your subscription remains non-refundable and all payments are final.
               {"\n\n"}
-              You will have a 14-day restoration period before the closure becomes permanent and your vendor associations are permanently severed.
+              You have 14 days to restore your account. After that the closure is final and cannot be undone. Within 30 days after that, all your data is permanently erased, apart from invoices and payment receipts that we are required to keep for accounting and reporting.
             </Text>
           </View>
 
@@ -332,7 +332,7 @@ export default function SettingsScreen() {
           {isClosing && (
             <View style={styles.warnBox}>
               <Text style={styles.note}>
-                Your account is scheduled for permanent closure on {deletionDate ? deletionDate.toLocaleDateString() : "—"}. Restore your account before this date to regain access.
+                Your account is scheduled for closure on {deletionDate ? deletionDate.toLocaleDateString() : "—"}. Restore it before this date to keep it. After that date the closure is final, and your data is permanently erased by {deletionDate ? new Date(deletionDate.getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString() : "—"}.
               </Text>
               <TouchableOpacity style={[styles.primaryBtn, { marginTop: 10, alignSelf: "flex-start" }]} onPress={confirmRestore} disabled={closeBusy}>
                 <Text style={styles.primaryBtnText}>{closeBusy ? "Restoring..." : "Restore Account"}</Text>
