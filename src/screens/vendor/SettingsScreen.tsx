@@ -13,6 +13,7 @@ import KeyboardAwareScroll from "../../components/KeyboardAwareScroll";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../../lib/supabase";
 import { usePullRefresh } from "../../lib/usePullRefresh";
+import LegalLinks from "../../components/LegalLinks";
 import AnalyticsOptOut from "../../components/AnalyticsOptOut";
 import { colors } from "../../theme/colors";
 import SpotlightMark from "../../components/SpotlightMark";
@@ -305,6 +306,7 @@ export default function SettingsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Privacy</Text>
           <AnalyticsOptOut />
+          <LegalLinks />
         </View>
 
         {/* DANGER ZONE */}

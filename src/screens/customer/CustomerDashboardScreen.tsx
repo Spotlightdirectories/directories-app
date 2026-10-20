@@ -18,6 +18,7 @@ import { usePullRefresh } from "../../lib/usePullRefresh";
 import { resolveActivityItems } from "./RecentlyViewedScreen";
 import SpotlightMark from "../../components/SpotlightMark";
 import AccountMenu from "../../components/AccountMenu";
+import LegalLinks from "../../components/LegalLinks";
 import AnalyticsOptOut from "../../components/AnalyticsOptOut";
 import { colors } from "../../theme/colors";
 
@@ -139,6 +140,7 @@ export default function CustomerDashboardScreen() {
 
       <View style={{ backgroundColor: "#141414", borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, marginTop: 14 }}>
         <AnalyticsOptOut />
+        <LegalLinks />
       </View>
     </ScrollView>
   );
