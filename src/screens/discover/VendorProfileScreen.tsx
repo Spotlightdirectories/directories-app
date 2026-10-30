@@ -1252,12 +1252,12 @@ export default function VendorProfileScreen() {
       {/* VISIT REQUEST MODAL */}
       <Modal visible={visitModalOpen} animationType="slide" transparent onRequestClose={() => setVisitModalOpen(false)}>
         <KAV style={styles.modalOverlay} behavior="padding">
-          <ScrollView style={[styles.modalCard, { flexGrow: 0 }]} keyboardShouldPersistTaps="handled" bounces={false}>
+          <ScrollView style={[styles.modalCard, { flexGrow: 0 }]} keyboardShouldPersistTaps="handled" refreshControl={refreshControl}>
             {visitSubmitted ? (
               <>
                 <Text style={styles.modalTitle}>Request Sent</Text>
                 <Text style={styles.modalText}>{vendor.name} will confirm your name and phone number before coming.</Text>
-                <TouchableOpacity style={styles.modalSubmitBtn} onPress={() => setVisitModalOpen(false)}>
+                <TouchableOpacity style={[styles.modalSubmitBtn, { flex: 0, minHeight: 48, justifyContent: "center", alignSelf: "stretch", marginTop: 8 }]} onPress={() => setVisitModalOpen(false)}>
                   <Text style={styles.modalSubmitText}>Done</Text>
                 </TouchableOpacity>
               </>

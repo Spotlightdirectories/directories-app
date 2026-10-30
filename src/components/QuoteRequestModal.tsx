@@ -11,7 +11,7 @@
 import { useState, useEffect } from "react";
 import {
   View, Text, Modal, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image, Alert,
-  KeyboardAvoidingView, Platform, FlatList,
+  KeyboardAvoidingView, Platform, FlatList, RefreshControl,
 } from "react-native";
 import { FontAwesome6 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -89,25 +89,38 @@ export default function QuoteRequestModal({ visible, onClose, customer, vendorId
   const [extraPickerId, setExtraPickerId] = useState<string | null>(null);
   const [calMonth, setCalMonth] = useState<Date>(new Date());
 
-  // Load this service's extra questions whenever the form is opened.
+  // Load this service's extra questions whenever the form is opened (and on pull-down refresh).
+  async function loadQuestions(): Promise<QuoteQuestion[] | null> {
+    if (!serviceId) return null;
+    try {
+      const { data: svc } = await supabase.from("vendor_services").select("category_id").eq("id", serviceId).maybeSingle();
+      if (!svc?.category_id) return null;
+      const { data: link } = await supabase.from("quote_category_families").select("family_id").eq("category_id", svc.category_id).maybeSingle();
+      if (!link?.family_id) return null;
+      const { data: qs } = await supabase
+        .from("quote_questions")
+        .select("id, question, question_pidgin, answer_type, options, placeholder")
+        .eq("family_id", link.family_id).eq("active", true).order("position", { ascending: true });
+      return (qs as QuoteQuestion[]) || [];
+    } catch { return null; /* optional questions; form works without them */ }
+  }
   useEffect(() => {
     if (!visible || !serviceId) return;
     let cancelled = false;
     (async () => {
-      try {
-        const { data: svc } = await supabase.from("vendor_services").select("category_id").eq("id", serviceId).maybeSingle();
-        if (!svc?.category_id) return;
-        const { data: link } = await supabase.from("quote_category_families").select("family_id").eq("category_id", svc.category_id).maybeSingle();
-        if (!link?.family_id) return;
-        const { data: qs } = await supabase
-          .from("quote_questions")
-          .select("id, question, question_pidgin, answer_type, options, placeholder")
-          .eq("family_id", link.family_id).eq("active", true).order("position", { ascending: true });
-        if (!cancelled) setQuestions((qs as QuoteQuestion[]) || []);
-      } catch { /* optional questions; form works without them */ }
+      const qs = await loadQuestions();
+      if (!cancelled && qs) setQuestions(qs);
     })();
     return () => { cancelled = true; };
   }, [visible, serviceId]);
+
+  const [refreshing, setRefreshing] = useState(false);
+  async function onRefresh() {
+    setRefreshing(true);
+    const qs = await loadQuestions();
+    if (qs) setQuestions(qs);
+    setRefreshing(false);
+  }
 
   // Reset the form each time the modal is opened (new open = new request).
   if (visible && initFor !== `${customer?.id}`) {
@@ -306,14 +319,14 @@ export default function QuoteRequestModal({ visible, onClose, customer, vendorId
               <Text style={styles.text}>
                 {vendorName || "The vendor"} will contact you with a quote. You can follow this request under My Quote Requests in your dashboard. Sending it does not commit you to anything.
               </Text>
-              <TouchableOpacity style={styles.submitBtn} onPress={close}><Text style={styles.submitText}>Done</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.submitBtn, { flex: 0, minHeight: 48, justifyContent: "center", alignSelf: "stretch", marginTop: 8 }]} onPress={close}><Text style={styles.submitText}>Done</Text></TouchableOpacity>
             </>
           ) : picker ? (
             renderPicker()
           ) : (
             <>
               <Text style={styles.title}>Request a Quote</Text>
-              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ flexShrink: 1 }}>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ flexShrink: 1 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}>
                 <Text style={styles.text}>
                   Tell {vendorName || "the vendor"} what you need for “{serviceName}” and they will contact you with a quote. Sending this does not commit you to anything.
                 </Text>

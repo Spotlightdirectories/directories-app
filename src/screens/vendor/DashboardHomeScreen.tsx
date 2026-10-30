@@ -27,8 +27,8 @@
 // turn comes, not silently faked here.
 // ===============================================================
 
-import { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Alert, Modal, Image } from "react-native";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Alert, Modal, Image, Animated } from "react-native";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -44,9 +44,25 @@ type Nav = NativeStackNavigationProp<RootStackParamList, "DashboardHome">;
 type Vendor = {
   id: string; name: string | null; email: string | null; spot_id: string | null;
   plan_tier: string | null; trial_started_at: string | null; email_verified: boolean | null;
+  subscription_status: string | null; expires_at: string | null; billing_cycle: string | null;
   address: string | null; description: string | null; whatsapp: string | null; telephone: string | null;
   latitude: number | null; longitude: number | null; logo_url: string | null;
 };
+
+// Launch offer: 3 free months on any yearly plan paid up to the end of 31 Dec 2026 (Lagos time).
+const OFFER_END_MS = new Date("2027-01-01T00:00:00+01:00").getTime();
+const PAID_PLANS = ["standard", "enterprise", "elite"];
+
+// Friendly plan name: the free plan is called "On the Map".
+function planLabel(plan: string | null): string {
+  if (!plan) return "—";
+  if (plan === "free") return "On the Map (Free)";
+  return plan.charAt(0).toUpperCase() + plan.slice(1);
+}
+
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Lagos" });
+}
 
 const NAV_TILES = [
   { key: "products", label: "Products", icon: "box" },
@@ -68,6 +84,8 @@ export default function DashboardHomeScreen() {
   const [trialText, setTrialText] = useState<{ days: string; ended: boolean } | null>(null);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [unreadRequests, setUnreadRequests] = useState(0);
+  const [hiddenCounts, setHiddenCounts] = useState({ products: 0, services: 0 });
+  const pulse = useRef(new Animated.Value(1)).current;
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -77,12 +95,15 @@ export default function DashboardHomeScreen() {
     if (!v) { setLoading(false); return; }
     setVendor(v);
 
-    const [{ count: mCount }, { count: sCount }, { count: pCatCount }, { count: sCatCount }] = await Promise.all([
+    const [{ count: mCount }, { count: sCount }, { count: pCatCount }, { count: sCatCount }, { count: hpCount }, { count: hsCount }] = await Promise.all([
       supabase.from("vendor_media").select("*", { count: "exact", head: true }).eq("vendor_id", v.id),
       supabase.from("vendor_social_links").select("*", { count: "exact", head: true }).eq("vendor_id", v.id),
       supabase.from("vendor_products").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).not("category_id", "is", null),
       supabase.from("vendor_services").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).not("category_id", "is", null),
+      supabase.from("vendor_products").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).eq("hidden_by_plan", true),
+      supabase.from("vendor_services").select("*", { count: "exact", head: true }).eq("vendor_id", v.id).eq("hidden_by_plan", true),
     ]);
+    setHiddenCounts({ products: hpCount || 0, services: hsCount || 0 });
     setMediaCount(mCount || 0);
     setSocialCount(sCount || 0);
     setCategorizedCount((pCatCount || 0) + (sCatCount || 0));
@@ -90,6 +111,16 @@ export default function DashboardHomeScreen() {
   }
 
   useEffect(() => { load(); }, []);
+
+  // Gentle pulse on the launch-bonus card.
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 0.78, duration: 900, useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
 
   useEffect(() => {
     if (!vendor || vendor.plan_tier !== "free" || !vendor.trial_started_at) return;
@@ -259,24 +290,69 @@ export default function DashboardHomeScreen() {
       </View>
 
       {/* PLAN */}
-      <View style={styles.card}>
-        <View style={styles.planTop}>
-          <FontAwesome6 name="bolt" size={16} color={colors.primary} />
-          <View style={{ marginLeft: 10 }}>
-            <Text style={styles.cardLabel}>Current Plan</Text>
-            <Text style={styles.planName}>{vendor.plan_tier || "—"}</Text>
-          </View>
-        </View>
-        {vendor.plan_tier === "free" && trialText && (
-          <View style={[styles.trialBox, trialText.ended && styles.trialBoxEnded]}>
-            <Text style={styles.trialLabel}>Free Trial</Text>
-            <Text style={styles.trialDays}>{trialText.days}</Text>
-          </View>
-        )}
-        <TouchableOpacity style={styles.upgradeBtn} onPress={() => openWebPageSignedIn("/getlisted?context=upgrade")}>
-          <Text style={styles.upgradeBtnText}>Compare Plans</Text>
-        </TouchableOpacity>
-      </View>
+      {(() => {
+        const plan = vendor.plan_tier || "free";
+        const isPaid = PAID_PLANS.includes(plan) && vendor.subscription_status === "active" && !!vendor.expires_at;
+        const msLeft = isPaid ? new Date(vendor.expires_at as string).getTime() - Date.now() : 0;
+        const daysLeft = isPaid ? Math.max(0, Math.ceil(msLeft / 86400000)) : 0;
+        const renewSoon = isPaid && daysLeft <= 30;
+        const offerOn = Date.now() < OFFER_END_MS;
+        const offerDays = Math.max(0, Math.ceil((OFFER_END_MS - Date.now()) / 86400000));
+        const hiddenTotal = hiddenCounts.products + hiddenCounts.services;
+        return (
+          <>
+            <View style={styles.card}>
+              <View style={styles.planTop}>
+                <FontAwesome6 name="bolt" size={16} color={colors.primary} />
+                <View style={{ marginLeft: 10 }}>
+                  <Text style={styles.cardLabel}>Current Plan</Text>
+                  <Text style={styles.planName}>{planLabel(vendor.plan_tier)}</Text>
+                </View>
+              </View>
+              {plan === "free" && trialText && (
+                <View style={[styles.trialBox, trialText.ended && styles.trialBoxEnded]}>
+                  <Text style={styles.trialLabel}>Free Trial</Text>
+                  <Text style={styles.trialDays}>{trialText.days}</Text>
+                </View>
+              )}
+              {isPaid && (
+                <View style={[styles.trialBox, renewSoon && styles.trialBoxEnded]}>
+                  <Text style={styles.trialLabel}>Valid until</Text>
+                  <Text style={styles.trialDays}>{fmtDate(vendor.expires_at as string)}</Text>
+                  <Text style={styles.planSub}>{daysLeft} {daysLeft === 1 ? "day" : "days"} left{renewSoon ? " - renew now so nothing is lost" : ""}</Text>
+                </View>
+              )}
+              {plan === "free" && (
+                <Text style={styles.planSub}>Free for life: 2 products and 2 services visible to customers.</Text>
+              )}
+              <TouchableOpacity style={styles.upgradeBtn} onPress={() => openWebPageSignedIn("/getlisted?context=upgrade")}>
+                <Text style={styles.upgradeBtnText}>{renewSoon ? "Renew My Plan" : plan === "free" ? "Upgrade Plan" : "Compare Plans"}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {hiddenTotal > 0 && (
+              <View style={[styles.card, styles.hiddenCard]}>
+                <Text style={styles.hiddenTitle}>Some of your items are hidden</Text>
+                <Text style={styles.hiddenText}>
+                  {hiddenCounts.products} product(s) and {hiddenCounts.services} service(s) are hidden from customers because they are beyond the limit of your current plan. They are safe and not deleted. Upgrade or renew and they show again. Look for the "Hidden on your plan" tag in your Products and Services lists.
+                </Text>
+              </View>
+            )}
+
+            {offerOn && (
+              <Animated.View style={[styles.card, styles.offerCard, { opacity: pulse }]}>
+                <Text style={styles.offerTitle}>🎁 Launch bonus: 3 months FREE</Text>
+                <Text style={styles.offerText}>
+                  Pay for any yearly plan (new or renewal) on or before 31 December 2026 and get 3 extra months on top. {offerDays} {offerDays === 1 ? "day" : "days"} left.
+                </Text>
+                <TouchableOpacity style={styles.upgradeBtn} onPress={() => openWebPageSignedIn("/getlisted?context=upgrade")}>
+                  <Text style={styles.upgradeBtnText}>{isPaid ? "Renew yearly and get 3 months" : "Get my 3 free months"}</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+          </>
+        );
+      })()}
 
       {/* BUSINESS QUICK INFO */}
       <View style={styles.card}>
@@ -372,6 +448,13 @@ const styles = StyleSheet.create({
   trialBoxEnded: { borderWidth: 1, borderColor: colors.warning },
   trialLabel: { color: colors.textSecondary, fontSize: 11 },
   trialDays: { color: colors.primary, fontSize: 15, fontWeight: "700", marginTop: 2 },
+  planSub: { color: colors.textSecondary, fontSize: 12, marginTop: 6 },
+  hiddenCard: { borderColor: colors.warning, borderWidth: 1 },
+  hiddenTitle: { color: colors.warning, fontSize: 14, fontWeight: "700" },
+  hiddenText: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 6 },
+  offerCard: { borderColor: colors.primary, borderWidth: 1.5 },
+  offerTitle: { color: colors.primary, fontSize: 15, fontWeight: "800" },
+  offerText: { color: colors.white, fontSize: 12, lineHeight: 18, marginTop: 6 },
   upgradeBtn: { backgroundColor: colors.primary, borderRadius: 8, paddingVertical: 10, alignItems: "center", marginTop: 12 },
   upgradeBtnText: { color: colors.black, fontWeight: "700", fontSize: 13 },
 

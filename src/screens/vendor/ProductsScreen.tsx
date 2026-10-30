@@ -35,7 +35,7 @@ type VendorProduct = {
   gallery_image_urls: string[] | null;
   category_id: string | null; subcategory_id: string | null;
   sub_subcategory_id: string | null; brand: string | null; variant: string | null;
-  attributes: AttributeValues | null; moderation_status: string | null;
+  attributes: AttributeValues | null; moderation_status: string | null; hidden_by_plan?: boolean | null;
 };
 
 type PendingProduct = {
@@ -523,6 +523,7 @@ export default function ProductsScreen() {
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                   <Text style={styles.pillName}>{p.product_name}</Text>
+                  {p.hidden_by_plan && <Text style={styles.hiddenBadge}>Hidden on your plan</Text>}
                   {p.moderation_status === "pending_review" && <Text style={styles.pendingBadge}>Pending Review</Text>}
                   {p.moderation_status === "rejected" && <Text style={styles.rejectedBadge}>Not Approved</Text>}
                 </View>
@@ -693,6 +694,7 @@ const styles = StyleSheet.create({
   pillName: { color: colors.white, fontSize: 13, fontWeight: "600" },
   pillPrice: { color: colors.success, fontSize: 12, fontWeight: "700", marginTop: 2 },
   editLink: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  hiddenBadge: { color: colors.warning, fontSize: 9, fontWeight: "700" },
   pendingBadge: { color: "#facc15", fontSize: 9, fontWeight: "700" },
   rejectedBadge: { color: colors.error, fontSize: 9, fontWeight: "700" },
 
