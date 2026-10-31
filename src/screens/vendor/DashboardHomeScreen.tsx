@@ -295,7 +295,8 @@ export default function DashboardHomeScreen() {
         const isPaid = PAID_PLANS.includes(plan) && vendor.subscription_status === "active" && !!vendor.expires_at;
         const msLeft = isPaid ? new Date(vendor.expires_at as string).getTime() - Date.now() : 0;
         const daysLeft = isPaid ? Math.max(0, Math.ceil(msLeft / 86400000)) : 0;
-        const renewSoon = isPaid && daysLeft <= 30;
+        const renewSoon = isPaid && daysLeft <= 90;
+        const renewUrgent = isPaid && daysLeft <= 30;
         const offerOn = Date.now() < OFFER_END_MS;
         const offerDays = Math.max(0, Math.ceil((OFFER_END_MS - Date.now()) / 86400000));
         const hiddenTotal = hiddenCounts.products + hiddenCounts.services;
@@ -316,17 +317,19 @@ export default function DashboardHomeScreen() {
                 </View>
               )}
               {isPaid && (
-                <View style={[styles.trialBox, renewSoon && styles.trialBoxEnded]}>
+                <View style={[styles.trialBox, renewUrgent && styles.trialBoxEnded]}>
                   <Text style={styles.trialLabel}>Valid until</Text>
                   <Text style={styles.trialDays}>{fmtDate(vendor.expires_at as string)}</Text>
-                  <Text style={styles.planSub}>{daysLeft} {daysLeft === 1 ? "day" : "days"} left{renewSoon ? " - renew now so nothing is lost" : ""}</Text>
+                  {renewSoon && (
+                    <Text style={styles.planSub}>{daysLeft} {daysLeft === 1 ? "day" : "days"} left{renewUrgent ? " - renew now so nothing is lost" : ""}</Text>
+                  )}
                 </View>
               )}
               {plan === "free" && (
                 <Text style={styles.planSub}>Free for life: 2 products and 2 services visible to customers.</Text>
               )}
-              <TouchableOpacity style={styles.upgradeBtn} onPress={() => openWebPageSignedIn("/getlisted?context=upgrade")}>
-                <Text style={styles.upgradeBtnText}>{renewSoon ? "Renew My Plan" : plan === "free" ? "Upgrade Plan" : "Compare Plans"}</Text>
+              <TouchableOpacity style={[styles.upgradeBtn, { backgroundColor: renewUrgent ? "#f59e0b" : "#facc15" }]} onPress={() => openWebPageSignedIn("/getlisted?context=upgrade")}>
+                <Text style={styles.upgradeBtnText}>{renewSoon ? "Renew My Plan" : plan === "free" ? "Upgrade" : "Change Plan"}</Text>
               </TouchableOpacity>
             </View>
 
