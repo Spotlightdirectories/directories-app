@@ -326,7 +326,7 @@ export default function DashboardHomeScreen() {
                 </View>
               )}
               {plan === "free" && (
-                <Text style={styles.planSub}>Free for life: 2 products and 2 services visible to customers.</Text>
+                <Text style={styles.planSub}>Start free: 2 products and 2 services visible to customers.</Text>
               )}
               <TouchableOpacity style={[styles.upgradeBtn, { backgroundColor: renewUrgent ? "#f59e0b" : "#facc15" }]} onPress={() => openWebPageSignedIn("/getlisted?context=upgrade")}>
                 <Text style={styles.upgradeBtnText}>{renewSoon ? "Renew My Plan" : plan === "free" ? "Upgrade" : "Change Plan"}</Text>

@@ -20,6 +20,7 @@
 // ===============================================================
 
 import { useEffect, useState } from "react";
+import { categoryIconFor } from "../lib/categoryIcons";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Switch, Modal, FlatList, Image } from "react-native";
 import { KeyboardAvoidingView as KAV } from "react-native";
 import KeyboardAwareScroll from "../components/KeyboardAwareScroll";
@@ -62,6 +63,7 @@ export default function HomeScreen() {
   const [artisanCats, setArtisanCats] = useState<string[]>([]);
   const [professionalCats, setProfessionalCats] = useState<string[]>([]);
   const [goodsCatsBySubgroup, setGoodsCatsBySubgroup] = useState<Record<string, string[]>>({});
+  const [catImages, setCatImages] = useState<Record<string, string>>({});
   const [nestedCats, setNestedCats] = useState<Record<string, Record<string, string[]>>>({});
 
   // ── Global filters (Option B) — shared by both category tiles and keyword search ──
@@ -87,8 +89,11 @@ export default function HomeScreen() {
   useEffect(() => {
     supabase.from("categories").select("*", { count: "exact", head: true }).then(({ error }) => setConnected(!error));
 
-    supabase.from("categories").select("name, audience_type, goods_subgroup").then(({ data }) => {
+    supabase.from("categories").select("name, audience_type, goods_subgroup, image_url").then(({ data }) => {
       if (!data) return;
+      const imgs: Record<string, string> = {};
+      for (const c of data as any[]) if (c.image_url) imgs[c.name] = c.image_url;
+      setCatImages(imgs);
       setArtisanCats(data.filter((c) => c.audience_type === "Artisan").map((c) => c.name).sort());
       setProfessionalCats(data.filter((c) => c.audience_type === "Professional").map((c) => c.name).sort());
       const grouped: Record<string, string[]> = {};
@@ -187,11 +192,18 @@ export default function HomeScreen() {
     setDistanceEnabled(false);
   }
 
+  // Category photo, same as the website's category list (36px rounded square).
+  function catThumb(name: string) {
+    const icon = categoryIconFor(catImages[name]);
+    return icon ? <Image source={icon} style={styles.catThumb} resizeMode="cover" /> : null;
+  }
+
   function renderCategoryRow(cat: string) {
     const nested = nestedCats[cat];
     if (!nested) {
       return (
         <TouchableOpacity key={cat} style={styles.subgroupItem} onPress={() => goToResults({ category: cat })}>
+          {catThumb(cat)}
           <Text style={styles.subgroupText}>{cat}</Text>
         </TouchableOpacity>
       );
@@ -200,6 +212,7 @@ export default function HomeScreen() {
     return (
       <View key={cat}>
         <TouchableOpacity style={styles.subgroupItem} onPress={() => { setOpenSubcat(null); setOpenCategory(isCatOpen ? null : cat); }}>
+          {catThumb(cat)}
           <Text style={styles.subgroupText}>{cat} {isCatOpen ? "▾" : "▸"}</Text>
         </TouchableOpacity>
         {isCatOpen && (
@@ -475,7 +488,8 @@ const styles = StyleSheet.create({
   tileLabel: { color: colors.white, fontSize: 12, fontWeight: "600", marginTop: 6 },
 
   subgroupList: { marginHorizontal: 20, marginTop: 8, marginBottom: 4 },
-  subgroupItem: { paddingVertical: 10, paddingLeft: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+  subgroupItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingLeft: 16, borderBottomWidth: 1, borderBottomColor: colors.border },
+  catThumb: { width: 36, height: 36, borderRadius: 8, backgroundColor: "#0d0d0d" },
   subgroupText: { color: colors.textSecondary, fontSize: 14 },
   nestedLevel: { paddingLeft: 16, borderLeftWidth: 2, borderLeftColor: colors.border, marginLeft: 4 },
 
