@@ -15,7 +15,7 @@
 // ===============================================================
 
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from "react-native";
 import KeyboardAwareScroll from "../../components/KeyboardAwareScroll";
 import { FontAwesome6 } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -37,7 +37,8 @@ export default function CustomerSignupScreen() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
+  // "customer" = email already has a customer account; "vendor" = email belongs to a vendor account
+  const [alreadyRegistered, setAlreadyRegistered] = useState<null | "customer" | "vendor">(null);
 
   async function handleSubmit() {
     if (submitting) return;
@@ -48,7 +49,25 @@ export default function CustomerSignupScreen() {
 
     setSubmitting(true);
     setError("");
-    setAlreadyRegistered(false);
+    setAlreadyRegistered(null);
+
+    // Check first, so we can say exactly what is already used.
+    try {
+      const { data: avail } = await supabase.rpc("check_signup_availability", { p_email: email.trim(), p_name: "" });
+      const a = (avail || {}) as { email_vendor?: boolean; email_customer?: boolean };
+      if (a.email_customer) {
+        setAlreadyRegistered("customer");
+        setError("This email address has already been used to register a customer account. Please log in instead.");
+        setSubmitting(false);
+        return;
+      }
+      if (a.email_vendor) {
+        setAlreadyRegistered("vendor");
+        setError("This email address has already been used to register a vendor account. To add a customer profile to it, continue on our website and log in with your vendor password.");
+        setSubmitting(false);
+        return;
+      }
+    } catch { /* if the check fails, sign-up below still protects against duplicates */ }
 
     const { data, error: authError } = await supabase.auth.signUp({
       email: email.trim(),
@@ -59,8 +78,8 @@ export default function CustomerSignupScreen() {
     if (authError) {
       const alreadyRegisteredError = /already registered/i.test(authError.message || "");
       if (alreadyRegisteredError) {
-        setAlreadyRegistered(true);
-        setError("An account with this email already exists on Spotlight.");
+        setAlreadyRegistered("customer");
+        setError("This email address has already been used to register an account on Spotlight. Please log in instead.");
       } else {
         setError(authError.message);
       }
@@ -113,19 +132,6 @@ export default function CustomerSignupScreen() {
       <Text style={styles.title}>Create your account</Text>
       <Text style={styles.subtitle}>Save your favorite vendors and manage your reviews in one place</Text>
 
-      {error ? (
-        <View>
-          <Text style={styles.error}>{error}</Text>
-          {alreadyRegistered && (
-            <TouchableOpacity
-              onPress={() => navigation.navigate("CustomerLogin")}
-            >
-              <Text style={styles.link}>Log in to set up your customer profile</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ) : null}
-
       <Text style={styles.label}>Full name</Text>
       <TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholderTextColor={colors.textSecondary} />
 
@@ -150,6 +156,22 @@ export default function CustomerSignupScreen() {
         </TouchableOpacity>
       </View>
 
+      {error ? (
+        <View style={styles.errorBox}>
+          <Text style={styles.error}>{error}</Text>
+          {alreadyRegistered === "customer" && (
+            <TouchableOpacity onPress={() => navigation.navigate("CustomerLogin")}>
+              <Text style={styles.link}>Log in</Text>
+            </TouchableOpacity>
+          )}
+          {alreadyRegistered === "vendor" && (
+            <TouchableOpacity onPress={() => Linking.openURL("https://spotlightdirectories.com/customer-signup")}>
+              <Text style={styles.link}>Continue on the website</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      ) : null}
+
       <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={submitting}>
         {submitting ? <ActivityIndicator color={colors.black} /> : <Text style={styles.buttonText}>Create Account</Text>}
       </TouchableOpacity>
@@ -170,8 +192,9 @@ const styles = StyleSheet.create({
   backText: { color: colors.primary, fontSize: 15 },
   title: { color: colors.white, fontSize: 24, fontWeight: "700" },
   subtitle: { color: colors.textSecondary, fontSize: 13, marginTop: 4, marginBottom: 20 },
-  error: { color: colors.error, fontSize: 13, marginBottom: 4 },
-  link: { color: colors.primary, fontSize: 13, fontWeight: "700", marginBottom: 16 },
+  errorBox: { marginTop: 20, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: colors.error, backgroundColor: "rgba(239,68,68,0.1)" },
+  error: { color: colors.error, fontSize: 13, lineHeight: 19 },
+  link: { color: colors.primary, fontSize: 13, fontWeight: "700", marginTop: 8 },
   label: { color: colors.textSecondary, fontSize: 13, marginBottom: 6, marginTop: 12 },
   optional: { fontWeight: "400", color: colors.textSecondary },
   helper: { color: colors.textSecondary, fontSize: 11, marginTop: 4 },
@@ -199,7 +222,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 14,
     alignItems: "center",
-    marginTop: 24,
+    marginTop: 16,
   },
   buttonText: { color: colors.black, fontWeight: "700", fontSize: 15 },
   footerLink: { color: colors.primary, fontSize: 13, textAlign: "center", marginTop: 16 },
