@@ -440,6 +440,7 @@ export default function ProductsScreen() {
 
         {formOpen && (
           <View style={styles.formCard}>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 8, lineHeight: 17 }}>Selling cooked food or running a restaurant? Choose Prepared Meals & Takeaway. For catering services, use the Services screen.</Text>
             <Text style={styles.fieldLabel}>Category</Text>
             <TouchableOpacity style={styles.field} onPress={() => setCategoryPickerOpen(true)}>
               <Text style={styles.fieldText}>{categories.find((c) => c.id === categoryId)?.name || "Select category"}</Text>

@@ -136,6 +136,7 @@ export const CATEGORY_ICONS: Record<string, number> = {
   "photography-equipment": require("../../assets/category-icons/photography-equipment.png"),
   "photography-videography": require("../../assets/category-icons/photography-videography.png"),
   "plastic-products": require("../../assets/category-icons/plastic-products.png"),
+  "prepared-meals-takeaway": require("../../assets/category-icons/prepared-meals-takeaway.png"),
   "plumbing-materials": require("../../assets/category-icons/plumbing-materials.png"),
   "plumbing-services": require("../../assets/category-icons/plumbing-services.png"),
   "power-energy-equipment": require("../../assets/category-icons/power-energy-equipment.png"),
