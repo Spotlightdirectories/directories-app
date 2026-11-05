@@ -40,6 +40,7 @@ type ResultItem = {
   image?: string | null;
   key: string;
   name: string;
+  subLabel?: string | null;
   vendorName: string;
   vendorSlug: string;
   itemSlug?: string;
@@ -183,7 +184,7 @@ export default function ResultsScreen() {
     ]);
 
     let productItems: ResultItem[] = (productsRes.data || []).map((p: any) => ({
-      key: `product-${p.id}`, name: p.product_name, vendorName: p.vendor_name, vendorSlug: p.vendor_slug,
+      key: `product-${p.id}`, name: p.product_name, subLabel: p.product_subcategory_label || null, vendorName: p.vendor_name, vendorSlug: p.vendor_slug,
       itemSlug: p.slug, vendorId: p.vendor_id, itemId: p.id,
       image: p.primary_image_url || null,
       price: p.price, kind: "product" as const, lat: p.vendor_latitude ?? null, lng: p.vendor_longitude ?? null,
@@ -361,6 +362,7 @@ export default function ResultsScreen() {
               </>
             ) : (
               <>
+                {item.subLabel ? <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 2 }}>{item.subLabel}</Text> : null}
                 <Text style={styles.itemName}>{item.branchName || item.name}</Text>
                 <Text style={styles.itemVendor}>By {item.vendorName}</Text>
               </>

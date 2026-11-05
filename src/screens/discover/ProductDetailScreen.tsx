@@ -34,7 +34,7 @@ type Route = RouteProp<RootStackParamList, "ProductDetail">;
 type Nav = NativeStackNavigationProp<RootStackParamList, "ProductDetail">;
 
 type Product = {
-  id: string; slug: string; vendor_id: string; product_name: string; price: number;
+  id: string; slug: string; vendor_id: string; product_name: string; display_subcategory?: string | null; price: number;
   short_description: string | null; key_details: string | null;
   attributes: Record<string, string> | null; category_id: string | null;
   primary_image_url: string | null; secondary_image_url: string | null;
@@ -46,6 +46,7 @@ type Product = {
 };
 
 type RelatedProduct = {
+  vendorSlug?: string;
   slug: string; product_name: string; price: number; primary_image_url: string | null;
   vendorName: string; vendorVerification: string; vendorRating: number; vendorReviews: number;
 };
@@ -77,8 +78,9 @@ export default function ProductDetailScreen() {
     if (!quiet) setLoading(true);
     const { data, error } = await supabase
       .from("vendor_products")
-      .select(`*, vendors(slug, name, whatsapp, telephone, verification_status, average_rating, reviews_count, is_sponsored)`)
+      .select(`*, vendors!inner(slug, name, whatsapp, telephone, verification_status, average_rating, reviews_count, is_sponsored)`)
       .eq("slug", productSlug)
+      .eq("vendors.slug", vendorSlug)
       .eq("moderation_status", "approved")
       .single();
 
@@ -131,7 +133,14 @@ export default function ProductDetailScreen() {
     const { data: similar } = await supabase.rpc("get_similar_products", {
       p_exclude_vendor_id: data.vendor_id, p_exclude_product_id: data.id, p_limit: 12,
     });
+    const simVendorIds = Array.from(new Set((similar || []).map((r: any) => r.vendor_id).filter(Boolean)));
+    const simSlugs: Record<string, string> = {};
+    if (simVendorIds.length) {
+      const { data: vs } = await supabase.from("vendors").select("id, slug").in("id", simVendorIds);
+      (vs || []).forEach((v: any) => { simSlugs[v.id] = v.slug; });
+    }
     setSimilarProducts((similar || []).map((p: any) => ({
+      vendorSlug: simSlugs[p.vendor_id],
       slug: p.slug, product_name: p.product_name, price: p.price, primary_image_url: p.primary_image_url,
       vendorName: p.vendor_name, vendorVerification: p.vendor_verification_status,
       vendorRating: p.vendor_average_rating, vendorReviews: p.vendor_reviews_count,
@@ -188,6 +197,7 @@ export default function ProductDetailScreen() {
 
       {/* MEDIA */}
       <Image source={{ uri: activeImage }} style={styles.mainImage} resizeMode="contain" />
+      {product.display_subcategory ? <Text style={{ color: colors.textSecondary, fontSize: 13, paddingHorizontal: 16, marginTop: 6 }}>{product.display_subcategory}</Text> : null}
       {thumbnails.length > 0 && (
         <View style={styles.thumbnailRow}>
           {thumbnails.map((src, i) => (
@@ -298,7 +308,7 @@ export default function ProductDetailScreen() {
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.relatedCard}
-                onPress={() => navigation.push("VendorProfile", { slug: vendorSlug })}
+                onPress={() => navigation.push("VendorProfile", { slug: item.vendorSlug || vendorSlug })}
               >
                 <Image source={{ uri: item.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.relatedImage} />
                 <Text style={styles.relatedName} numberOfLines={2}>{item.product_name}</Text>

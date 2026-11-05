@@ -29,6 +29,7 @@ import { FontAwesome6 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../../lib/supabase";
+import { serviceCategoryHint } from "../../lib/categoryHints";
 import { usePullRefresh } from "../../lib/usePullRefresh";
 import { uploadVendorFile } from "../../lib/uploadVendorFile";
 import { openWebPageSignedIn } from "../../lib/webHandoff";
@@ -474,7 +475,6 @@ export default function ServicesScreen() {
 
         {formOpen && (
           <View style={styles.formCard}>
-            <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 8, lineHeight: 17 }}>Looking for catering or a restaurant? Choose Food & Catering. To sell cooked meals as products, use the Products screen and choose Prepared Meals & Takeaway.</Text>
             <Text style={styles.fieldLabel}>Category</Text>
             <TouchableOpacity style={styles.field} onPress={() => setCategoryPickerOpen(true)}>
               <Text style={styles.fieldText}>{categories.find((c) => c.id === categoryId)?.name || "Select category"}</Text>
@@ -577,6 +577,7 @@ export default function ServicesScreen() {
           <View style={styles.pickerCard}>
             <Text style={styles.modalTitle}>Select Category</Text>
             <TextInput style={styles.searchInput} placeholder="Search categories..." placeholderTextColor={colors.textSecondary} value={categorySearch} onChangeText={setCategorySearch} autoFocus />
+            {serviceCategoryHint(categorySearch) ? <Text style={{ color: colors.textSecondary, fontSize: 12, lineHeight: 17, backgroundColor: "rgba(230,194,0,0.12)", padding: 8, borderRadius: 6, marginBottom: 8 }}>{serviceCategoryHint(categorySearch)}</Text> : null}
             <FlatList data={filteredCategories} keyExtractor={(c) => c.id} renderItem={({ item }) => (
               <TouchableOpacity style={styles.pickerItem} onPress={() => { setCategoryId(item.id); setSubcategoryId(""); setSubSubcategoryId(""); setCategoryPickerOpen(false); setCategorySearch(""); }}>
                 <Text style={styles.pickerItemText}>{item.name}</Text>

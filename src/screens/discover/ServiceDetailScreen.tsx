@@ -48,6 +48,7 @@ type ServiceData = {
 };
 
 type RelatedService = {
+  vendorSlug?: string;
   slug: string; service_name: string; starting_price: number | null; representative_image_url: string | null;
   vendorName: string; vendorVerification: string; vendorRating: number; vendorReviews: number;
 };
@@ -70,6 +71,8 @@ export default function ServiceDetailScreen() {
 
   const [service, setService] = useState<ServiceData | null>(null);
   const [activeImage, setActiveImage] = useState("");
+  // Request a Visit only shows for home-service categories (categories.allows_visit_request)
+  const [visitAllowed, setVisitAllowed] = useState(false);
   const [moreServices, setMoreServices] = useState<RelatedService[]>([]);
   const [similarServices, setSimilarServices] = useState<RelatedService[]>([]);
   const [attributeLabels, setAttributeLabels] = useState<{ key: string; label: string }[]>([]);
@@ -92,8 +95,9 @@ export default function ServiceDetailScreen() {
     if (!quiet) setLoading(true);
     const { data, error } = await supabase
       .from("vendor_services")
-      .select(`*, vendors(slug, name, whatsapp, telephone, verification_status, average_rating, reviews_count, is_sponsored)`)
+      .select(`*, vendors!inner(slug, name, whatsapp, telephone, verification_status, average_rating, reviews_count, is_sponsored)`)
       .eq("slug", serviceSlug)
+      .eq("vendors.slug", vendorSlug)
       .eq("moderation_status", "approved")
       .single();
 
@@ -105,6 +109,8 @@ export default function ServiceDetailScreen() {
     setLoading(false);
 
     if (data.category_id) {
+      const { data: cat } = await supabase.from("categories").select("allows_visit_request").eq("id", data.category_id).maybeSingle();
+      setVisitAllowed(!!cat?.allows_visit_request);
       const { data: defs } = await supabase
         .from("service_attributes")
         .select("key,label")
@@ -136,7 +142,14 @@ export default function ServiceDetailScreen() {
     const { data: similar } = await supabase.rpc("get_similar_services", {
       p_exclude_vendor_id: data.vendor_id, p_exclude_service_id: data.id, p_limit: 12,
     });
+    const simVendorIds = Array.from(new Set((similar || []).map((r: any) => r.vendor_id).filter(Boolean)));
+    const simSlugs: Record<string, string> = {};
+    if (simVendorIds.length) {
+      const { data: vs } = await supabase.from("vendors").select("id, slug").in("id", simVendorIds);
+      (vs || []).forEach((v: any) => { simSlugs[v.id] = v.slug; });
+    }
     setSimilarServices((similar || []).map((s: any) => ({
+      vendorSlug: simSlugs[s.vendor_id],
       slug: s.slug, service_name: s.service_name, starting_price: s.starting_price,
       representative_image_url: s.representative_image_url,
       vendorName: s.vendor_name, vendorVerification: s.vendor_verification_status,
@@ -332,10 +345,12 @@ export default function ServiceDetailScreen() {
             <FontAwesome6 name="share-nodes" size={13} color={colors.black} />
             <Text style={[styles.actionBtnText, { color: colors.black }]}>Share Service</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionBtn, styles.visitBtn]} onPress={openVisitModal}>
-            <FontAwesome6 name="shield-heart" size={13} color={colors.primary} />
-            <Text style={[styles.actionBtnText, { color: colors.primary }]}>Request a Visit</Text>
-          </TouchableOpacity>
+          {visitAllowed && (
+            <TouchableOpacity style={[styles.actionBtn, styles.visitBtn]} onPress={openVisitModal}>
+              <FontAwesome6 name="shield-heart" size={13} color={colors.primary} />
+              <Text style={[styles.actionBtnText, { color: colors.primary }]}>Request a Visit</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={[styles.actionBtn, styles.quoteBtn]} onPress={openQuoteModal}>
             <FontAwesome6 name="file-invoice-dollar" size={13} color={colors.black} />
             <Text style={[styles.actionBtnText, { color: colors.black }]}>Request a Quote</Text>
@@ -371,7 +386,7 @@ export default function ServiceDetailScreen() {
             horizontal
             showsHorizontalScrollIndicator={false}
             renderItem={({ item }) => (
-              <TouchableOpacity style={styles.relatedCard} onPress={() => navigation.push("VendorProfile", { slug: vendorSlug })}>
+              <TouchableOpacity style={styles.relatedCard} onPress={() => navigation.push("VendorProfile", { slug: item.vendorSlug || vendorSlug })}>
                 {item.representative_image_url && <Image source={{ uri: item.representative_image_url }} style={styles.relatedImage} />}
                 <Text style={styles.relatedName} numberOfLines={2}>{item.service_name}</Text>
                 {item.starting_price != null && <Text style={styles.relatedPriceLabel}>From <Text style={styles.relatedPrice}>₦{Number(item.starting_price).toLocaleString()}</Text></Text>}

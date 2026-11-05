@@ -17,6 +17,7 @@ import { FontAwesome6 } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "../../lib/supabase";
+import { productCategoryHint } from "../../lib/categoryHints";
 import { usePullRefresh } from "../../lib/usePullRefresh";
 import { uploadVendorFile } from "../../lib/uploadVendorFile";
 import { openWebPageSignedIn } from "../../lib/webHandoff";
@@ -24,7 +25,7 @@ import AiDescribeModal from "../../components/AiDescribeModal";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
-type Option = { id: string; name: string };
+type Option = { id: string; name: string; free_product_name?: boolean };
 type AttributeDef = { id: string; key: string; label: string; field_type: "text" | "number" | "select" | "multiselect"; options: string[] | null; display_order: number };
 type AttributeValues = Record<string, string>;
 const GALLERY_SLOTS = 5;
@@ -76,6 +77,8 @@ export default function ProductsScreen() {
   const [subcategories, setSubcategories] = useState<Option[]>([]);
   const [subSubcategories, setSubSubcategories] = useState<Option[]>([]);
   const [categoryId, setCategoryId] = useState("");
+  // Categories where the vendor types the product's own name and the subcategory shows as a grey label.
+  const freeName = !!categories.find((c) => c.id === categoryId)?.free_product_name;
   const [subcategoryId, setSubcategoryId] = useState("");
   const [subSubcategoryId, setSubSubcategoryId] = useState("");
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
@@ -89,6 +92,7 @@ export default function ProductsScreen() {
   const [subcategorySearch, setSubcategorySearch] = useState("");
   const [subSubSearch, setSubSubSearch] = useState("");
 
+  const [ownName, setOwnName] = useState("");
   const [brand, setBrand] = useState("");
   const [variant, setVariant] = useState("");
   const [description, setDescription] = useState("");
@@ -117,7 +121,7 @@ export default function ProductsScreen() {
     if (!v) { setLoading(false); return; }
     setVendor(v);
 
-    const { data: cats } = await supabase.from("categories").select("id,name").eq("kind", "product").order("name");
+    const { data: cats } = await supabase.from("categories").select("id,name,free_product_name").eq("kind", "product").order("name");
     setCategories(cats || []);
 
     const { data: prods } = await supabase.from("vendor_products").select("*").eq("vendor_id", v.id).order("display_order", { ascending: true });
@@ -165,7 +169,7 @@ export default function ProductsScreen() {
 
   function resetForm() {
     setCategoryId(""); setSubcategoryId(""); setSubSubcategoryId("");
-    setBrand(""); setVariant(""); setDescription(""); setPrice("");
+    setOwnName(""); setBrand(""); setVariant(""); setDescription(""); setPrice("");
     setImageUrl(""); setImagePreview("");
     setSecondaryUrl(""); setSecondaryPreview("");
     setTertiaryUrl(""); setTertiaryPreview("");
@@ -241,7 +245,8 @@ export default function ProductsScreen() {
 
     const subcategoryName = subcategories.find((s) => s.id === subcategoryId)?.name || "";
     const subSubName = subSubcategories.find((s) => s.id === subSubcategoryId)?.name || "";
-    const name = composeProductName(brand, variant, subSubName || subcategoryName);
+    const name = freeName ? ownName.trim() : composeProductName(brand, variant, subSubName || subcategoryName);
+    if (freeName && !name) { Alert.alert("Missing product name", "Please type the product name."); return; }
 
     setPendingProducts((prev) => [...prev, {
       product_name: name, short_description: description.trim(), price: Number(price),
@@ -262,6 +267,7 @@ export default function ProductsScreen() {
     setEditingId(product.id);
     setFormOpen(true);
     setCategoryId(product.category_id || "");
+    setOwnName(product.product_name || "");
     setBrand(product.brand || "");
     setVariant(product.variant || "");
     setDescription(product.short_description || "");
@@ -304,7 +310,8 @@ export default function ProductsScreen() {
       if (editingId) {
         const subcategoryName = subcategories.find((s) => s.id === subcategoryId)?.name || "";
         const subSubName = subSubcategories.find((s) => s.id === subSubcategoryId)?.name || "";
-        const name = composeProductName(brand, variant, subSubName || subcategoryName);
+        const name = freeName ? ownName.trim() : composeProductName(brand, variant, subSubName || subcategoryName);
+        if (freeName && !name) { Alert.alert("Missing product name", "Please type the product name."); setSaving(false); return; }
         const galleryToSave = galleryUrls.filter(Boolean);
 
         const { error } = await supabase.from("vendor_products").update({
@@ -345,7 +352,7 @@ export default function ProductsScreen() {
   function currentItemName() {
     const subcategoryName = subcategories.find((s) => s.id === subcategoryId)?.name || "";
     const subSubName = subSubcategories.find((s) => s.id === subSubcategoryId)?.name || "";
-    return composeProductName(brand, variant, subSubName || subcategoryName);
+    return freeName ? ownName : composeProductName(brand, variant, subSubName || subcategoryName);
   }
 
   function renderAttributeField(def: AttributeDef) {
@@ -440,7 +447,6 @@ export default function ProductsScreen() {
 
         {formOpen && (
           <View style={styles.formCard}>
-            <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 8, lineHeight: 17 }}>Selling cooked food or running a restaurant? Choose Prepared Meals & Takeaway. For catering services, use the Services screen.</Text>
             <Text style={styles.fieldLabel}>Category</Text>
             <TouchableOpacity style={styles.field} onPress={() => setCategoryPickerOpen(true)}>
               <Text style={styles.fieldText}>{categories.find((c) => c.id === categoryId)?.name || "Select category"}</Text>
@@ -464,11 +470,20 @@ export default function ProductsScreen() {
               </>
             )}
 
-            <Text style={styles.fieldLabel}>Brand (optional)</Text>
-            <TextInput style={styles.input} value={brand} onChangeText={setBrand} placeholderTextColor={colors.textSecondary} />
+            {freeName ? (
+              <>
+                <Text style={styles.fieldLabel}>Product name</Text>
+                <TextInput style={styles.input} value={ownName} onChangeText={setOwnName} maxLength={80} placeholder="e.g. Jollof Rice" placeholderTextColor={colors.textSecondary} />
+              </>
+            ) : (
+              <>
+                <Text style={styles.fieldLabel}>Brand (optional)</Text>
+                <TextInput style={styles.input} value={brand} onChangeText={setBrand} placeholderTextColor={colors.textSecondary} />
 
-            <Text style={styles.fieldLabel}>Model / Variant (optional)</Text>
-            <TextInput style={styles.input} value={variant} onChangeText={setVariant} placeholderTextColor={colors.textSecondary} />
+                <Text style={styles.fieldLabel}>Model / Variant (optional)</Text>
+                <TextInput style={styles.input} value={variant} onChangeText={setVariant} placeholderTextColor={colors.textSecondary} />
+              </>
+            )}
 
             {attributeDefs.length > 0 && (
               <>
@@ -555,6 +570,7 @@ export default function ProductsScreen() {
               onChangeText={setCategorySearch}
               autoFocus
             />
+            {productCategoryHint(categorySearch) ? <Text style={{ color: colors.textSecondary, fontSize: 12, lineHeight: 17, backgroundColor: "rgba(230,194,0,0.12)", padding: 8, borderRadius: 6, marginBottom: 8 }}>{productCategoryHint(categorySearch)}</Text> : null}
             <FlatList data={filteredCategories} keyExtractor={(c) => c.id} renderItem={({ item }) => (
               <TouchableOpacity style={styles.pickerItem} onPress={() => { setCategoryId(item.id); setSubcategoryId(""); setSubSubcategoryId(""); setCategoryPickerOpen(false); setCategorySearch(""); }}>
                 <Text style={styles.pickerItemText}>{item.name}</Text>

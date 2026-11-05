@@ -158,7 +158,7 @@ type Vendor = {
 
 type SocialLink = { id: string; platform: string; url: string };
 type Review = { reviewer_name: string; review_text: string; created_at: string; customer_id: string | null };
-type Product = { id: string; slug: string; product_name: string; price: number; primary_image_url: string | null };
+type Product = { id: string; slug: string; product_name: string; display_subcategory?: string | null; price: number; primary_image_url: string | null };
 type Service = {
   id: string; slug: string; service_name: string; starting_price: number; short_description: string | null;
 };
@@ -234,6 +234,8 @@ export default function VendorProfileScreen() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  // Request a Visit only shows when the vendor has a service in a home-service category (categories.allows_visit_request)
+  const [visitAllowed, setVisitAllowed] = useState(false);
   const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
   const [portfolioRecs, setPortfolioRecs] = useState<Record<string, PortfolioRecommendation>>({});
   const [showAllPortfolio, setShowAllPortfolio] = useState(false);
@@ -321,7 +323,7 @@ export default function VendorProfileScreen() {
 
     const { data: prods } = await supabase
       .from("vendor_products")
-      .select("id, slug, product_name, price, primary_image_url")
+      .select("id, slug, product_name, display_subcategory, price, primary_image_url")
       .eq("vendor_id", v.id)
       .eq("moderation_status", "approved")
       .order("display_order", { ascending: true });
@@ -329,10 +331,18 @@ export default function VendorProfileScreen() {
 
     const { data: servs } = await supabase
       .from("vendor_services")
-      .select("id, slug, service_name, starting_price, short_description")
+      .select("id, slug, service_name, starting_price, short_description, category_id")
       .eq("vendor_id", v.id)
       .eq("moderation_status", "approved");
     setServices(servs || []);
+
+    const catIds = new Set<string>(((servs as { category_id?: string | null }[]) || []).map((s) => s.category_id).filter(Boolean) as string[]);
+    const { data: vrow } = await supabase.from("vendors").select("category_id").eq("id", v.id).maybeSingle();
+    if (vrow?.category_id) catIds.add(vrow.category_id);
+    if (catIds.size === 0) { setVisitAllowed(false); } else {
+      const { data: okCats } = await supabase.from("categories").select("id").eq("allows_visit_request", true).in("id", Array.from(catIds));
+      setVisitAllowed((okCats || []).length > 0);
+    }
 
     // Portfolio — Service/Hybrid vendors only, matching web
     if (v.business_type === "service" || v.business_type === "hybrid") {
@@ -954,7 +964,7 @@ export default function VendorProfileScreen() {
               <Text style={styles.actionText}>{isFavorited ? "Saved" : "Save"}</Text>
             </TouchableOpacity>
           )}
-          {!isOwner && (
+          {!isOwner && visitAllowed && (
             <TouchableOpacity style={[styles.action, styles.actionVisit]} onPress={openVisitModal}>
               <FontAwesome6 name="shield-heart" size={16} color={colors.white} />
               <Text style={styles.actionText}>Request a Visit</Text>
@@ -1134,6 +1144,7 @@ export default function VendorProfileScreen() {
                       onPress={() => navigation.navigate("ProductDetail", { vendorSlug: vendor.slug, productSlug: p.slug })}
                     >
                       <Image source={{ uri: p.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.productImage} />
+                      {p.display_subcategory ? <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4 }} numberOfLines={1}>{p.display_subcategory}</Text> : null}
                       <Text style={styles.productName} numberOfLines={2}>{p.product_name}</Text>
                       <Text style={styles.productPrice}>₦{Number(p.price || 0).toLocaleString()}</Text>
                       {vendor.is_sponsored && <Text style={styles.sponsoredTag}>SPONSORED</Text>}
