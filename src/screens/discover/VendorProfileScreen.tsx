@@ -160,7 +160,7 @@ type SocialLink = { id: string; platform: string; url: string };
 type Review = { reviewer_name: string; review_text: string; created_at: string; customer_id: string | null };
 type Product = { id: string; slug: string; product_name: string; display_subcategory?: string | null; price: number; primary_image_url: string | null };
 type Service = {
-  id: string; slug: string; service_name: string; starting_price: number; short_description: string | null;
+  id: string; slug: string; service_name: string; starting_price: number; short_description: string | null; representative_image_url?: string | null;
 };
 type PortfolioItem = {
   id: string; title: string; description: string | null; client_name: string | null;
@@ -331,7 +331,7 @@ export default function VendorProfileScreen() {
 
     const { data: servs } = await supabase
       .from("vendor_services")
-      .select("id, slug, service_name, starting_price, short_description, category_id")
+      .select("id, slug, service_name, starting_price, short_description, representative_image_url, category_id")
       .eq("vendor_id", v.id)
       .eq("moderation_status", "approved");
     setServices(servs || []);
@@ -1162,7 +1162,10 @@ export default function VendorProfileScreen() {
                     style={styles.serviceCard}
                     onPress={() => navigation.navigate("ServiceDetail", { vendorSlug: vendor.slug, serviceSlug: s.slug })}
                   >
-                    <Text style={styles.serviceName}>{s.service_name}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                      <Image source={{ uri: s.representative_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.serviceImage} />
+                      <Text style={[styles.serviceName, { flex: 1 }]}>{s.service_name}</Text>
+                    </View>
                     {s.short_description && <Text style={styles.serviceDescription} numberOfLines={2}>{s.short_description}</Text>}
                     <Text style={styles.serviceDescription}>Starting from <Text style={styles.servicePrice}>₦{Number(s.starting_price || 0).toLocaleString()}</Text></Text>
                   </TouchableOpacity>
@@ -1419,6 +1422,7 @@ const styles = StyleSheet.create({
   productName: { color: colors.white, fontSize: 12, fontWeight: "600", marginTop: 8 },
   productPrice: { color: colors.success, fontSize: 12, fontWeight: "700", marginTop: 4 },
   sponsoredTag: { color: colors.primary, fontSize: 9, fontWeight: "700", marginTop: 4 },
+  serviceImage: { width: 64, height: 64, borderRadius: 10, backgroundColor: colors.border, resizeMode: "cover" },
   serviceCard: { backgroundColor: "#0d0d0d", borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 8 },
   serviceName: { color: colors.white, fontSize: 14, fontWeight: "600" },
   serviceDescription: { color: colors.textSecondary, fontSize: 12, marginTop: 4 },
