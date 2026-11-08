@@ -216,7 +216,7 @@ export default function ProductDetailScreen() {
         <View style={styles.vendorMeta}>
           <View style={styles.vendorRow}>
             <Text style={styles.vendorName}>By {vendor?.name || ""}</Text>
-            <FounderBadge slug={vendorSlug} size={14} />
+            <FounderBadge slug={vendorSlug} size={11} />
             <SmallBadge status={vendor?.verification_status || "none"} />
           </View>
           <View style={styles.ratingRow}>

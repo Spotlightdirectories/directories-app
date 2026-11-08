@@ -11,7 +11,8 @@
 // ===============================================================
 
 import { useEffect, useState } from "react";
-import { Text, TouchableOpacity, Alert } from "react-native";
+import { Text, View } from "react-native";
+import BadgeTip from "./BadgeTip";
 import { supabase } from "../lib/supabase";
 
 const cache = new Map<string, Promise<boolean>>();
@@ -42,30 +43,28 @@ export default function FounderBadge({
   const on = show !== undefined && show !== null ? show : found;
   if (!on) return null;
   return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      onPress={() => Alert.alert("Founders 1000", "One of the first 1,000 vendors to join Spotlight Directories.")}
-      accessibilityRole="button"
-      accessibilityLabel="Founders 1000"
-      style={{
-        height: size,
-        paddingHorizontal: Math.round(size * 0.33),
-        borderRadius: size,
-        backgroundColor: "#000",
-        borderWidth: 1,
-        borderColor: "#F2C94C",
-        shadowColor: "#FFC828",
-        shadowOpacity: 0.95,
-        shadowRadius: 7,
-        shadowOffset: { width: 0, height: 0 },
-        elevation: 6,
-        alignItems: "center",
-        justifyContent: "center",
-        marginRight: 6,
-      }}
-    >
-      <Text style={{ color: "#FFD84D", fontSize: Math.round(size * 0.55), fontWeight: "800", letterSpacing: 0.5, textShadowColor: "rgba(255,200,40,0.9)", textShadowRadius: 6, textShadowOffset: { width: 0, height: 0 } }}>1KF</Text>
-    </TouchableOpacity>
+    <View style={{ marginRight: 6 }}>
+      <BadgeTip kind="founder">
+        <View
+          style={{
+            height: size,
+            paddingHorizontal: Math.round(size * 0.33),
+            borderRadius: size,
+            backgroundColor: "#000",
+            borderWidth: 1,
+            borderColor: "#F2C94C",
+            shadowColor: "#FFC828",
+            shadowOpacity: 0.95,
+            shadowRadius: 7,
+            shadowOffset: { width: 0, height: 0 },
+            elevation: 6,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text style={{ color: "#FFD84D", fontSize: Math.round(size * 0.64), fontWeight: "800", letterSpacing: 0.5, textShadowColor: "rgba(255,200,40,0.9)", textShadowRadius: 6, textShadowOffset: { width: 0, height: 0 } }}>1KF</Text>
+        </View>
+      </BadgeTip>
+    </View>
   );
 }

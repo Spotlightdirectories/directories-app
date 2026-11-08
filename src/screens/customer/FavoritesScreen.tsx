@@ -145,7 +145,7 @@ export default function FavoritesScreen() {
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <View style={styles.nameRow}>
                   <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-                  <FounderBadge slug={item.slug} size={16} />
+                  <FounderBadge slug={item.slug} size={13} />
                   <Badge status={item.verification_status} />
                 </View>
                 {item.categoryLine ? <Text style={styles.category} numberOfLines={2}>{item.categoryLine}</Text> : null}
