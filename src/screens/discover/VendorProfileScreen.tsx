@@ -33,6 +33,7 @@ import { openWebPageSignedIn } from "../../lib/webHandoff";
 import SpotlightMark from "../../components/SpotlightMark";
 import AccountMenu from "../../components/AccountMenu";
 import VerifiedBadge from "../../components/VerifiedBadge";
+import FounderBadge from "../../components/FounderBadge";
 import { colors } from "../../theme/colors";
 
 import { insertAnalytics } from "../../lib/analytics";
@@ -147,6 +148,7 @@ function VendorVideoPlayer({ uri, onFirstPlay }: { uri: string; onFirstPlay?: ()
 }
 
 type Vendor = {
+  is_founder?: boolean;
   id: string; slug: string; name: string; category: string; subcategory: string;
   address: string; phone: string; telephone: string; whatsapp: string; email: string;
   logo_url: string | null; cover_url: string | null; description: string | null;
@@ -867,6 +869,7 @@ export default function VendorProfileScreen() {
           <View style={styles.bannerText}>
             <View style={styles.nameRow}>
               <Text style={styles.bannerName} numberOfLines={1}>{vendor.name}</Text>
+              <FounderBadge show={vendor.is_founder} size={20} />
               <Badge status={vendor.verification_status} />
             </View>
             <View style={styles.bannerMeta}>
@@ -1235,6 +1238,7 @@ export default function VendorProfileScreen() {
                   <Image source={{ uri: b.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png" }} style={styles.similarLogo} />
                   <View style={styles.similarNameRow}>
                     <Text style={styles.similarName} numberOfLines={1}>{b.name}</Text>
+                    <FounderBadge slug={b.slug} size={14} />
                     <SmallBadge status={b.verification_status} />
                   </View>
                   <Text style={styles.similarRating}>★ {Number(b.average_rating || 0).toFixed(1)} ({b.reviews_count || 0})</Text>

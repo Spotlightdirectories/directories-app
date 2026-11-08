@@ -18,6 +18,7 @@ import { usePullRefresh } from "../../lib/usePullRefresh";
 import SpotlightMark from "../../components/SpotlightMark";
 import AccountMenu from "../../components/AccountMenu";
 import VerifiedBadge from "../../components/VerifiedBadge";
+import FounderBadge from "../../components/FounderBadge";
 import { colors } from "../../theme/colors";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "Favorites">;
@@ -144,6 +145,7 @@ export default function FavoritesScreen() {
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <View style={styles.nameRow}>
                   <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+                  <FounderBadge slug={item.slug} size={16} />
                   <Badge status={item.verification_status} />
                 </View>
                 {item.categoryLine ? <Text style={styles.category} numberOfLines={2}>{item.categoryLine}</Text> : null}

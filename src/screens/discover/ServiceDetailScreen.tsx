@@ -29,6 +29,7 @@ import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import { usePullRefresh } from "../../lib/usePullRefresh";
 import VerifiedBadge from "../../components/VerifiedBadge";
+import FounderBadge from "../../components/FounderBadge";
 import SpotlightMark from "../../components/SpotlightMark";
 import QuoteRequestModal, { QuoteCustomer } from "../../components/QuoteRequestModal";
 import { colors } from "../../theme/colors";
@@ -287,6 +288,7 @@ export default function ServiceDetailScreen() {
         <View style={styles.vendorMeta}>
           <View style={[styles.vendorRow, !hasImage && styles.centerRow]}>
             <Text style={styles.vendorName}>By {vendor?.name || ""}</Text>
+            <FounderBadge slug={vendorSlug} size={14} />
             <SmallBadge status={vendor?.verification_status || "none"} />
           </View>
           <View style={[styles.ratingRow, !hasImage && styles.centerRow]}>

@@ -21,6 +21,7 @@ import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
 import { usePullRefresh } from "../../lib/usePullRefresh";
 import VerifiedBadge from "../../components/VerifiedBadge";
+import FounderBadge from "../../components/FounderBadge";
 import { nigeriaData } from "../../lib/nigeria-data";
 import { logSearch } from "../../lib/logSearch";
 import { applyDistance, formatDistance } from "../../lib/distance";
@@ -101,6 +102,8 @@ export default function ResultsScreen() {
   const [keyword, setKeyword] = useState(initialKeyword || "");
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<ResultItem[]>([]);
+  // Founders 1000 (1KF): slugs of vendors whose Spot-ID number is 1-1000.
+  const [founderSlugs, setFounderSlugs] = useState<Set<string>>(new Set());
   const [services, setServices] = useState<ResultItem[]>([]);
   const [vendors, setVendors] = useState<ResultItem[]>([]);
 
@@ -251,6 +254,13 @@ export default function ResultsScreen() {
     setProducts(productItems);
     setServices(serviceItems);
     setVendors(vendorItems);
+    try {
+      const slugs = [...new Set(vendorItems.map((i) => i.vendorSlug).filter(Boolean))];
+      if (slugs.length > 0) {
+        const { data: fr } = await supabase.from("vendors").select("slug").in("slug", slugs).eq("is_founder", true);
+        setFounderSlugs(new Set((fr || []).map((r: any) => r.slug)));
+      } else setFounderSlugs(new Set());
+    } catch { /* badge is optional */ }
     setLoading(false);
 
     // Business Insights: one "search impression" per vendor / product / service
@@ -348,6 +358,7 @@ export default function ResultsScreen() {
               <>
                 <View style={styles.vendorNameRow}>
                   <Text style={[styles.itemName, { flexShrink: 1 }]}>{item.branchName || item.name}</Text>
+                  <FounderBadge show={founderSlugs.has(item.vendorSlug)} size={18} />
                   <VerifiedBadge status={item.verification} size={18} />
                 </View>
                 <View style={styles.ratingRow}>
