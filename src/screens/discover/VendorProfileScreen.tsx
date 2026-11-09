@@ -869,7 +869,7 @@ export default function VendorProfileScreen() {
           <View style={styles.bannerText}>
             <View style={styles.nameRow}>
               <Text style={styles.bannerName} numberOfLines={1}>{vendor.name}</Text>
-              <FounderBadge show={vendor.is_founder} size={16} />
+              <FounderBadge show={vendor.is_founder} size={18} />
               <Badge status={vendor.verification_status} />
             </View>
             <View style={styles.bannerMeta}>
@@ -1238,7 +1238,7 @@ export default function VendorProfileScreen() {
                   <Image source={{ uri: b.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png" }} style={styles.similarLogo} />
                   <View style={styles.similarNameRow}>
                     <Text style={styles.similarName} numberOfLines={1}>{b.name}</Text>
-                    <FounderBadge slug={b.slug} size={11} />
+                    <FounderBadge slug={b.slug} size={12} />
                     <SmallBadge status={b.verification_status} />
                   </View>
                   <Text style={styles.similarRating}>★ {Number(b.average_rating || 0).toFixed(1)} ({b.reviews_count || 0})</Text>

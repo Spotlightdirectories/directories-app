@@ -1,7 +1,7 @@
 // ===============================================================
 // src/components/FounderBadge.tsx
 //
-// Founders 1000 badge: gold "1KF" on black. Goes BEFORE the verified
+// Founders 1000 badge: round gold laurel medal with "1KF". Goes BEFORE the verified
 // badge, for the first 1,000 vendors (Spot-ID number 1-1000, stored
 // in vendors.is_founder). No number is shown on purpose.
 // Tapping explains it (the web shows the same text on hover).
@@ -11,9 +11,11 @@
 // ===============================================================
 
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Image, View } from "react-native";
 import BadgeTip from "./BadgeTip";
 import { supabase } from "../lib/supabase";
+
+const MEDAL = require("../../assets/badges/foundersbadge.png");
 
 const cache = new Map<string, Promise<boolean>>();
 
@@ -43,27 +45,9 @@ export default function FounderBadge({
   const on = show !== undefined && show !== null ? show : found;
   if (!on) return null;
   return (
-    <View style={{ marginRight: 6 }}>
+    <View style={{ marginRight: 4 }}>
       <BadgeTip kind="founder">
-        <View
-          style={{
-            height: size,
-            paddingHorizontal: Math.round(size * 0.33),
-            borderRadius: size,
-            backgroundColor: "#000",
-            borderWidth: 1,
-            borderColor: "#F2C94C",
-            shadowColor: "#FFC828",
-            shadowOpacity: 0.95,
-            shadowRadius: 7,
-            shadowOffset: { width: 0, height: 0 },
-            elevation: 6,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Text style={{ color: "#FFD84D", fontSize: Math.round(size * 0.64), fontWeight: "800", letterSpacing: 0.5, textShadowColor: "rgba(255,200,40,0.9)", textShadowRadius: 6, textShadowOffset: { width: 0, height: 0 } }}>1KF</Text>
-        </View>
+        <Image source={MEDAL} style={{ width: size, height: size }} resizeMode="contain" />
       </BadgeTip>
     </View>
   );

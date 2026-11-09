@@ -358,7 +358,7 @@ export default function ResultsScreen() {
               <>
                 <View style={styles.vendorNameRow}>
                   <Text style={[styles.itemName, { flexShrink: 1 }]}>{item.branchName || item.name}</Text>
-                  <FounderBadge show={founderSlugs.has(item.vendorSlug)} size={14} />
+                  <FounderBadge show={founderSlugs.has(item.vendorSlug)} size={16} />
                   <VerifiedBadge status={item.verification} size={18} />
                 </View>
                 <View style={styles.ratingRow}>
