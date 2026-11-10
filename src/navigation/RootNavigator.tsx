@@ -34,8 +34,8 @@ export type RootStackParamList = {
   Home: undefined;
   AccountType: undefined;
   VendorLogin: undefined;
-  CustomerLogin: undefined;
-  CustomerSignup: undefined;
+  CustomerLogin: { reason?: "continue" } | undefined;
+  CustomerSignup: { reason?: "continue" } | undefined;
   LoggedIn: { role: "vendor" | "customer"; name: string };
   CustomerDashboard: undefined;
   SearchHistory: undefined;

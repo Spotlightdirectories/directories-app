@@ -181,9 +181,9 @@ export default function ServiceDetailScreen() {
 
   async function openVisitModal() {
     const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
-    if (!user) { navigation.navigate("CustomerLogin"); return; }
+    if (!user) { navigation.navigate("CustomerLogin", { reason: "continue" }); return; }
     const { data: customer } = await supabase.from("customers").select("id, name, phone").eq("auth_user_id", user.id).maybeSingle();
-    if (!customer) { navigation.navigate("CustomerLogin"); return; }
+    if (!customer) { navigation.navigate("CustomerLogin", { reason: "continue" }); return; }
     setVisitCustomer(customer);
     setVisitPhone(customer.phone || "");
     setVisitLocation("");
@@ -194,9 +194,9 @@ export default function ServiceDetailScreen() {
 
   async function openQuoteModal() {
     const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
-    if (!user) { navigation.navigate("CustomerLogin"); return; }
+    if (!user) { navigation.navigate("CustomerLogin", { reason: "continue" }); return; }
     const { data: customer } = await supabase.from("customers").select("id, name, phone, email").eq("auth_user_id", user.id).maybeSingle();
-    if (!customer) { navigation.navigate("CustomerLogin"); return; }
+    if (!customer) { navigation.navigate("CustomerLogin", { reason: "continue" }); return; }
     setQuoteCustomer(customer);
     setQuoteOpen(true);
   }

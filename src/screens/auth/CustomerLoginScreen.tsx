@@ -9,11 +9,13 @@
 // signup screen, not bolted onto login.
 // ===============================================================
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
 import KeyboardAwareScroll from "../../components/KeyboardAwareScroll";
 import { FontAwesome6 } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, CommonActions } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
@@ -24,6 +26,27 @@ type Nav = NativeStackNavigationProp<RootStackParamList, "CustomerLogin">;
 
 export default function CustomerLoginScreen() {
   const navigation = useNavigation<Nav>();
+  // Set when a customer was sent here from a button such as "Request a Quote".
+  const route = useRoute<RouteProp<RootStackParamList, "CustomerLogin">>();
+  // Also remembered across the sign-up + email-confirmation step, so a new
+  // customer who left the app to confirm their email is still brought back.
+  const [rememberedAction, setRememberedAction] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem("spotlight_after_signup").then((v) => { if (v) setRememberedAction(true); }).catch(() => {});
+  }, []);
+  const fromAction = route.params?.reason === "continue" || rememberedAction;
+
+  // Go back to the page the customer started from (skipping the login and
+  // sign-up screens in between). Returns false if there is no such page.
+  function returnToOrigin(): boolean {
+    const routes = navigation.getState().routes;
+    const authScreens = ["CustomerLogin", "CustomerSignup", "AccountType"];
+    let i = routes.length - 1;
+    while (i >= 0 && authScreens.includes(routes[i].name)) i--;
+    if (i < 0) return false;
+    navigation.dispatch(CommonActions.reset({ index: i, routes: routes.slice(0, i + 1) } as any));
+    return true;
+  }
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -59,6 +82,11 @@ export default function CustomerLoginScreen() {
       return;
     }
 
+    // Came from "Request a Quote" or similar: go back to that page so the
+    // customer can carry on. Otherwise open their dashboard as before.
+    const wasAction = fromAction;
+    AsyncStorage.removeItem("spotlight_after_signup").catch(() => {});
+    if (wasAction && returnToOrigin()) return;
     navigation.replace("CustomerDashboard");
   }
 
@@ -73,7 +101,9 @@ export default function CustomerLoginScreen() {
 
       <View style={styles.centeredContent}>
         <Text style={styles.title}>Welcome Back</Text>
-        <Text style={styles.subtitle}>Log in to see your favorite vendors and reviews</Text>
+        <Text style={styles.subtitle}>
+          {fromAction ? "You need a free customer account to continue." : "Log in to see your favorite vendors and reviews"}
+        </Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -105,8 +135,10 @@ export default function CustomerLoginScreen() {
           {loading ? <ActivityIndicator color={colors.black} /> : <Text style={styles.buttonText}>Log In</Text>}
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.navigate("CustomerSignup")}>
-          <Text style={styles.footerLink}>Don't have an account? Sign up</Text>
+        <TouchableOpacity onPress={() => navigation.navigate("CustomerSignup", fromAction ? { reason: "continue" } : undefined)}>
+          <Text style={styles.footerLink}>
+            {fromAction ? "New here? Create a customer account to continue" : "Don't have an account? Sign up"}
+          </Text>
         </TouchableOpacity>
       </View>
     </KeyboardAwareScroll>

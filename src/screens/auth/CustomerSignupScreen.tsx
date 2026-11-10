@@ -18,7 +18,9 @@ import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Linking } from "react-native";
 import KeyboardAwareScroll from "../../components/KeyboardAwareScroll";
 import { FontAwesome6 } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/RootNavigator";
 import { supabase } from "../../lib/supabase";
@@ -29,6 +31,9 @@ type Nav = NativeStackNavigationProp<RootStackParamList, "CustomerSignup">;
 
 export default function CustomerSignupScreen() {
   const navigation = useNavigation<Nav>();
+  // Set when a visitor was sent here from "Request a Quote" or similar.
+  const route = useRoute<RouteProp<RootStackParamList, "CustomerSignup">>();
+  const fromAction = route.params?.reason === "continue";
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -102,6 +107,10 @@ export default function CustomerSignupScreen() {
       return;
     }
 
+    // Remember why they signed up, so after confirming their email and
+    // logging in they are taken back to the page they started from.
+    if (fromAction) { try { await AsyncStorage.setItem("spotlight_after_signup", "1"); } catch { /* ignore */ } }
+
     setSubmitting(false);
     setSuccess(true);
   }
@@ -114,7 +123,7 @@ export default function CustomerSignupScreen() {
         <Text style={styles.successText}>
           We've sent a confirmation link to your email address. Click it to activate your account, then log in.
         </Text>
-        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate("CustomerLogin")}>
+        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate("CustomerLogin", fromAction ? { reason: "continue" } : undefined)}>
           <Text style={styles.buttonText}>Go to Login</Text>
         </TouchableOpacity>
       </View>
@@ -130,7 +139,9 @@ export default function CustomerSignupScreen() {
         <SpotlightMark size={22} />
       </View>
       <Text style={styles.title}>Create your account</Text>
-      <Text style={styles.subtitle}>Save your favorite vendors and manage your reviews in one place</Text>
+      <Text style={styles.subtitle}>
+        {fromAction ? "Create a free customer account to continue." : "Save your favorite vendors and manage your reviews in one place"}
+      </Text>
 
       <Text style={styles.label}>Full name</Text>
       <TextInput style={styles.input} value={fullName} onChangeText={setFullName} placeholderTextColor={colors.textSecondary} />
@@ -160,7 +171,7 @@ export default function CustomerSignupScreen() {
         <View style={styles.errorBox}>
           <Text style={styles.error}>{error}</Text>
           {alreadyRegistered === "customer" && (
-            <TouchableOpacity onPress={() => navigation.navigate("CustomerLogin")}>
+            <TouchableOpacity onPress={() => navigation.navigate("CustomerLogin", fromAction ? { reason: "continue" } : undefined)}>
               <Text style={styles.link}>Log in</Text>
             </TouchableOpacity>
           )}
@@ -176,7 +187,7 @@ export default function CustomerSignupScreen() {
         {submitting ? <ActivityIndicator color={colors.black} /> : <Text style={styles.buttonText}>Create Account</Text>}
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate("CustomerLogin")}>
+      <TouchableOpacity onPress={() => navigation.navigate("CustomerLogin", fromAction ? { reason: "continue" } : undefined)}>
         <Text style={styles.footerLink}>Already have an account? Log in</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => navigation.navigate("VendorLogin")}>
