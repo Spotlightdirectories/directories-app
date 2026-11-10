@@ -30,7 +30,7 @@ export default function MyInquiriesScreen() {
   const [items, setItems] = useState<InquiryItem[]>([]);
 
   async function load() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (!user) { setError(true); setLoading(false); return; }
     const { data: customer } = await supabase.from("customers").select("id").eq("auth_user_id", user.id).maybeSingle();
     if (!customer) { setError(true); setLoading(false); return; }

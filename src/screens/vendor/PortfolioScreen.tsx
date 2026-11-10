@@ -72,7 +72,7 @@ export default function PortfolioScreen() {
   const totalCount = savedItems.length + pendingItems.length;
 
   async function load() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (!user) { setLoading(false); return; }
     const { data: v } = await supabase.from("vendors").select("id, name").eq("auth_user_id", user.id).maybeSingle();
     if (!v) { setLoading(false); return; }

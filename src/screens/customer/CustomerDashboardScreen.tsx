@@ -48,7 +48,7 @@ export default function CustomerDashboardScreen() {
   const [unreadQuotes, setUnreadQuotes] = useState(0);
 
   async function load() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (!user) { setLoading(false); return; }
     const { data: c } = await supabase.from("customers").select("id, name, email, account_status, scheduled_deletion_at").eq("auth_user_id", user.id).maybeSingle();
     if (!c) { setLoading(false); return; }

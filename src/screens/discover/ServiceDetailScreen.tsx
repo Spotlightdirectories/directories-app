@@ -59,7 +59,7 @@ function SmallBadge({ status }: { status: string }) {
 }
 
 async function getViewingCustomerId(): Promise<string | null> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
   if (!user) return null;
   const { data } = await supabase.from("customers").select("id").eq("auth_user_id", user.id).maybeSingle();
   return data?.id || null;
@@ -179,7 +179,7 @@ export default function ServiceDetailScreen() {
   }
 
   async function openVisitModal() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (!user) { navigation.navigate("CustomerLogin"); return; }
     const { data: customer } = await supabase.from("customers").select("id, name, phone").eq("auth_user_id", user.id).maybeSingle();
     if (!customer) { navigation.navigate("CustomerLogin"); return; }
@@ -192,7 +192,7 @@ export default function ServiceDetailScreen() {
   }
 
   async function openQuoteModal() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (!user) { navigation.navigate("CustomerLogin"); return; }
     const { data: customer } = await supabase.from("customers").select("id, name, phone, email").eq("auth_user_id", user.id).maybeSingle();
     if (!customer) { navigation.navigate("CustomerLogin"); return; }

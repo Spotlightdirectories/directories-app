@@ -9,6 +9,7 @@
 // src/app/(standalone)/vendordashboard/ProductsTab.tsx.
 // ===============================================================
 
+import { cachedQuery } from "../../lib/cachedQuery";
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Image, Modal, FlatList, Alert } from "react-native";
 import { KeyboardAvoidingView as KAV } from "react-native";
@@ -115,13 +116,13 @@ export default function ProductsScreen() {
   const [aiToast, setAiToast] = useState<string | null>(null);
 
   async function load() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (!user) { setLoading(false); return; }
     const { data: v } = await supabase.from("vendors").select("id, name, plan_tier, trial_started_at").eq("auth_user_id", user.id).maybeSingle();
     if (!v) { setLoading(false); return; }
     setVendor(v);
 
-    const { data: cats } = await supabase.from("categories").select("id,name,free_product_name").eq("kind", "product").order("name");
+    const { data: cats } = await cachedQuery("tab-product-cats", () => supabase.from("categories").select("id,name,free_product_name").eq("kind", "product").order("name"));
     setCategories(cats || []);
 
     const { data: prods } = await supabase.from("vendor_products").select("*").eq("vendor_id", v.id).order("display_order", { ascending: true });
@@ -134,12 +135,12 @@ export default function ProductsScreen() {
 
   useEffect(() => {
     if (!categoryId) { setSubcategories([]); return; }
-    supabase.from("subcategories").select("id,name").eq("category_id", categoryId).order("name").then(({ data }) => setSubcategories(data || []));
+    cachedQuery("subs:" + categoryId, () => supabase.from("subcategories").select("id,name").eq("category_id", categoryId).order("name")).then(({ data }: any) => setSubcategories(data || []));
   }, [categoryId]);
 
   useEffect(() => {
     if (!subcategoryId) { setSubSubcategories([]); return; }
-    supabase.from("sub_subcategories").select("id,name").eq("subcategory_id", subcategoryId).order("display_order").then(({ data }) => setSubSubcategories(data || []));
+    cachedQuery("subsubs:" + subcategoryId, () => supabase.from("sub_subcategories").select("id,name").eq("subcategory_id", subcategoryId).order("display_order")).then(({ data }: any) => setSubSubcategories(data || []));
   }, [subcategoryId]);
 
   // Spec/attribute definitions for the selected category -- fetches

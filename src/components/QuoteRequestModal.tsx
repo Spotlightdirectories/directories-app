@@ -176,7 +176,7 @@ export default function QuoteRequestModal({ visible, onClose, customer, vendorId
         await supabase.from("customers").update({ phone: phone.trim() }).eq("id", customer.id);
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
       if (!user) { Alert.alert("Please log in again", "Your session expired."); setSubmitting(false); return; }
 
       const paths: string[] = [];

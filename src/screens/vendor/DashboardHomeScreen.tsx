@@ -88,7 +88,7 @@ export default function DashboardHomeScreen() {
   const pulse = useRef(new Animated.Value(1)).current;
 
   async function load() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (!user) { setLoading(false); return; }
 
     const { data: v } = await supabase.from("vendors").select("*").eq("auth_user_id", user.id).maybeSingle();
@@ -145,7 +145,7 @@ export default function DashboardHomeScreen() {
   // Unread count on the Visit & Quote Requests tile; refreshes every
   // time this screen comes back into focus (e.g. after opening the inbox).
   async function loadUnread() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (!user) return;
     const { data: v } = await supabase.from("vendors").select("id").eq("auth_user_id", user.id).maybeSingle();
     if (!v) return;

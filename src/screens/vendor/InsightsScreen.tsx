@@ -321,7 +321,7 @@ export default function InsightsScreen() {
 
   useEffect(() => {
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
       if (user) {
         const { data: v } = await supabase.from("vendors").select("*").eq("auth_user_id", user.id).maybeSingle();
         if (v) { setVendorId(v.id); setVendorName(v.name || ""); setVendorRow(v); }

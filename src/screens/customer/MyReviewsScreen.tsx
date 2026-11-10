@@ -43,7 +43,7 @@ export default function MyReviewsScreen() {
   const [reviews, setReviews] = useState<MyReview[]>([]);
 
   async function load() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (!user) { setError(true); setLoading(false); return; }
 
     const { data: customer } = await supabase.from("customers").select("email").eq("auth_user_id", user.id).maybeSingle();

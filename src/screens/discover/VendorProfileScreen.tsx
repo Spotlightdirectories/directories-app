@@ -295,7 +295,7 @@ export default function VendorProfileScreen() {
   const [submittingReview, setSubmittingReview] = useState(false);
 
   async function load() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
 
     const { data: v } = await supabase.from("vendors").select("*").eq("slug", slug).maybeSingle();
     if (!v) { setLoading(false); return; }
@@ -312,103 +312,116 @@ export default function VendorProfileScreen() {
       setTrialActive(days <= 90);
     }
 
-    const { data: links } = await supabase.from("vendor_social_links").select("*").eq("vendor_id", v.id);
-    setSocialLinks(links || []);
-
-    const { data: revs } = await supabase
-      .from("vendor_reviews")
-      .select("reviewer_name, review_text, created_at, customer_id")
-      .eq("vendor_id", v.id)
-      .order("created_at", { ascending: false })
-      .limit(10);
-    setReviews(revs || []);
-
-    const { data: prods } = await supabase
-      .from("vendor_products")
-      .select("id, slug, product_name, display_subcategory, price, primary_image_url")
-      .eq("vendor_id", v.id)
-      .eq("moderation_status", "approved")
-      .order("display_order", { ascending: true });
-    setProducts(prods || []);
-
-    const { data: servs } = await supabase
-      .from("vendor_services")
-      .select("id, slug, service_name, starting_price, short_description, representative_image_url, category_id")
-      .eq("vendor_id", v.id)
-      .eq("moderation_status", "approved");
-    setServices(servs || []);
-
-    const catIds = new Set<string>(((servs as { category_id?: string | null }[]) || []).map((s) => s.category_id).filter(Boolean) as string[]);
-    const { data: vrow } = await supabase.from("vendors").select("category_id").eq("id", v.id).maybeSingle();
-    if (vrow?.category_id) catIds.add(vrow.category_id);
-    if (catIds.size === 0) { setVisitAllowed(false); } else {
-      const { data: okCats } = await supabase.from("categories").select("id").eq("allows_visit_request", true).in("id", Array.from(catIds));
-      setVisitAllowed((okCats || []).length > 0);
-    }
-
-    // Portfolio — Service/Hybrid vendors only, matching web
-    if (v.business_type === "service" || v.business_type === "hybrid") {
-      const { data: items } = await supabase
-        .from("vendor_portfolio_items")
-        .select("id, title, description, client_name, completed_on")
+    // Speed: these sections do not depend on each other, so they are
+    // fetched together (one wait) instead of one after another.
+    await Promise.all([
+      (async () => {
+      const { data: links } = await supabase.from("vendor_social_links").select("*").eq("vendor_id", v.id);
+      setSocialLinks(links || []);
+      })(),
+      (async () => {
+      const { data: revs } = await supabase
+        .from("vendor_reviews")
+        .select("reviewer_name, review_text, created_at, customer_id")
         .eq("vendor_id", v.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      setReviews(revs || []);
+      })(),
+      (async () => {
+      const { data: prods } = await supabase
+        .from("vendor_products")
+        .select("id, slug, product_name, display_subcategory, price, primary_image_url")
+        .eq("vendor_id", v.id)
+        .eq("moderation_status", "approved")
         .order("display_order", { ascending: true });
-      const portfolioList = items || [];
-      setPortfolioItems(portfolioList);
+      setProducts(prods || []);
 
-      const entries = await Promise.all(
-        portfolioList.map(async (item) => {
-          const { data: rec } = await supabase
-            .rpc("get_portfolio_recommendation", { p_portfolio_item_id: item.id })
-            .maybeSingle();
-          return [item.id, rec] as const;
-        })
-      );
-      const byItem: Record<string, PortfolioRecommendation> = {};
-      for (const [id, rec] of entries) if (rec) byItem[id] = rec as PortfolioRecommendation;
-      setPortfolioRecs(byItem);
-    }
-
-    // Similar Businesses
-    const { data: similar } = await supabase.rpc("get_similar_businesses", {
-      p_exclude_vendor_id: v.id,
-      p_target_category: v.category,
-      p_limit: 6,
-    });
-    setSimilarBusinesses(similar || []);
-    setSimilarLoaded(true);
-
-    // Branches — read-only list, respecting plan limit
-    const { data: branchData } = await supabase
-      .from("branches")
-      .select("id, branch_name, address, latitude, longitude")
-      .eq("vendor_id", v.id)
-      .eq("account_status", "active");
-    const limit = BRANCH_LIMITS[v.plan_tier] ?? 0;
-    setBranches(branchData && limit > 0 ? branchData.slice(0, limit) : []);
-
-    // Video — only if the plan allows it, matching web's VIDEO_LIMITS
-    if (VIDEO_ALLOWED[v.plan_tier]) {
-      const { data: media } = await supabase
-        .from("vendor_media")
-        .select("id, file_url")
+      const { data: servs } = await supabase
+        .from("vendor_services")
+        .select("id, slug, service_name, starting_price, short_description, representative_image_url, category_id")
         .eq("vendor_id", v.id)
-        .eq("media_type", "video")
-        .limit(1);
-      setVideoUrl(media?.[0]?.file_url || null);
-      setVideoRecordId(media?.[0]?.id || null);
-    }
+        .eq("moderation_status", "approved");
+      setServices(servs || []);
 
-    // Favorite state — logged-in customer, not the owner
-    if (user && v.auth_user_id !== user.id) {
-      const { data: customer } = await supabase.from("customers").select("id").eq("auth_user_id", user.id).maybeSingle();
-      if (customer) {
-        setFavoriteCustomerId(customer.id);
-        const { data: fav } = await supabase.from("customer_favorites").select("id").eq("customer_id", customer.id).eq("vendor_id", v.id).maybeSingle();
-        setIsFavorited(!!fav);
-        setFavoriteVisible(true);
+      const catIds = new Set<string>(((servs as { category_id?: string | null }[]) || []).map((s) => s.category_id).filter(Boolean) as string[]);
+      const { data: vrow } = await supabase.from("vendors").select("category_id").eq("id", v.id).maybeSingle();
+      if (vrow?.category_id) catIds.add(vrow.category_id);
+      if (catIds.size === 0) { setVisitAllowed(false); } else {
+        const { data: okCats } = await supabase.from("categories").select("id").eq("allows_visit_request", true).in("id", Array.from(catIds));
+        setVisitAllowed((okCats || []).length > 0);
       }
-    }
+      })(),
+      (async () => {
+      // Portfolio — Service/Hybrid vendors only, matching web
+      if (v.business_type === "service" || v.business_type === "hybrid") {
+        const { data: items } = await supabase
+          .from("vendor_portfolio_items")
+          .select("id, title, description, client_name, completed_on")
+          .eq("vendor_id", v.id)
+          .order("display_order", { ascending: true });
+        const portfolioList = items || [];
+        setPortfolioItems(portfolioList);
+
+        const entries = await Promise.all(
+          portfolioList.map(async (item) => {
+            const { data: rec } = await supabase
+              .rpc("get_portfolio_recommendation", { p_portfolio_item_id: item.id })
+              .maybeSingle();
+            return [item.id, rec] as const;
+          })
+        );
+        const byItem: Record<string, PortfolioRecommendation> = {};
+        for (const [id, rec] of entries) if (rec) byItem[id] = rec as PortfolioRecommendation;
+        setPortfolioRecs(byItem);
+      }
+      })(),
+      (async () => {
+      // Similar Businesses
+      const { data: similar } = await supabase.rpc("get_similar_businesses", {
+        p_exclude_vendor_id: v.id,
+        p_target_category: v.category,
+        p_limit: 6,
+      });
+      setSimilarBusinesses(similar || []);
+      setSimilarLoaded(true);
+      })(),
+      (async () => {
+      // Branches — read-only list, respecting plan limit
+      const { data: branchData } = await supabase
+        .from("branches")
+        .select("id, branch_name, address, latitude, longitude")
+        .eq("vendor_id", v.id)
+        .eq("account_status", "active");
+      const limit = BRANCH_LIMITS[v.plan_tier] ?? 0;
+      setBranches(branchData && limit > 0 ? branchData.slice(0, limit) : []);
+      })(),
+      (async () => {
+      // Video — only if the plan allows it, matching web's VIDEO_LIMITS
+      if (VIDEO_ALLOWED[v.plan_tier]) {
+        const { data: media } = await supabase
+          .from("vendor_media")
+          .select("id, file_url")
+          .eq("vendor_id", v.id)
+          .eq("media_type", "video")
+          .limit(1);
+        setVideoUrl(media?.[0]?.file_url || null);
+        setVideoRecordId(media?.[0]?.id || null);
+      }
+      })(),
+      (async () => {
+      // Favorite state — logged-in customer, not the owner
+      if (user && v.auth_user_id !== user.id) {
+        const { data: customer } = await supabase.from("customers").select("id").eq("auth_user_id", user.id).maybeSingle();
+        if (customer) {
+          setFavoriteCustomerId(customer.id);
+          const { data: fav } = await supabase.from("customer_favorites").select("id").eq("customer_id", customer.id).eq("vendor_id", v.id).maybeSingle();
+          setIsFavorited(!!fav);
+          setFavoriteVisible(true);
+        }
+      }
+      })(),
+    ]);
 
     setLoading(false);
   }
@@ -456,7 +469,7 @@ export default function VendorProfileScreen() {
   }
 
   async function openVisitModal() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (!user) { navigation.navigate("CustomerLogin"); return; }
     const { data: customer } = await supabase.from("customers").select("id, name, phone").eq("auth_user_id", user.id).maybeSingle();
     if (!customer) { navigation.navigate("CustomerLogin"); return; }
@@ -501,7 +514,7 @@ export default function VendorProfileScreen() {
   }, [vendor, isOwner]);
 
   async function openReviewModal() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (user) {
       const { data: customer } = await supabase.from("customers").select("id, name, email").eq("auth_user_id", user.id).maybeSingle();
       if (customer) {

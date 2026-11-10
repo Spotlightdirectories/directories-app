@@ -83,7 +83,7 @@ export default function VisitRequestsReceivedScreen() {
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
 
   async function load() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (!user) { setError(true); setLoading(false); return; }
     const { data: vendor } = await supabase.from("vendors").select("id").eq("auth_user_id", user.id).maybeSingle();
     if (!vendor) { setError(true); setLoading(false); return; }

@@ -43,7 +43,7 @@ export default function SearchHistoryScreen() {
   const [history, setHistory] = useState<SearchLogRow[]>([]);
 
   async function load() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
     if (!user) {
       setError(true);
       setLoading(false);

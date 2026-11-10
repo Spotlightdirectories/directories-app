@@ -19,6 +19,7 @@
 // used to own, moved here since it's configuration, not a result.
 // ===============================================================
 
+import { cachedQuery } from "../lib/cachedQuery";
 import { useEffect, useState } from "react";
 import { categoryIconFor } from "../lib/categoryIcons";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Switch, Modal, FlatList, Image } from "react-native";
@@ -89,13 +90,13 @@ export default function HomeScreen() {
   useEffect(() => {
     supabase.from("categories").select("*", { count: "exact", head: true }).then(({ error }) => setConnected(!error));
 
-    supabase.from("categories").select("name, audience_type, goods_subgroup, image_url").then(({ data }) => {
+    cachedQuery("home-cats", () => supabase.from("categories").select("name, audience_type, goods_subgroup, image_url")).then(({ data }: any) => {
       if (!data) return;
       const imgs: Record<string, string> = {};
       for (const c of data as any[]) if (c.image_url) imgs[c.name] = c.image_url;
       setCatImages(imgs);
-      setArtisanCats(data.filter((c) => c.audience_type === "Artisan").map((c) => c.name).sort());
-      setProfessionalCats(data.filter((c) => c.audience_type === "Professional").map((c) => c.name).sort());
+      setArtisanCats(data.filter((c: any) => c.audience_type === "Artisan").map((c: any) => c.name).sort());
+      setProfessionalCats(data.filter((c: any) => c.audience_type === "Professional").map((c: any) => c.name).sort());
       const grouped: Record<string, string[]> = {};
       for (const c of data) {
         if (c.audience_type !== "Goods" || !c.goods_subgroup) continue;
@@ -106,7 +107,7 @@ export default function HomeScreen() {
       setGoodsCatsBySubgroup(grouped);
     });
 
-    supabase.from("categories").select("name, subcategories(name, sub_subcategories(name))").in("name", DEEP_CATEGORIES).then(({ data }) => {
+    cachedQuery("home-nested", () => supabase.from("categories").select("name, subcategories(name, sub_subcategories(name))").in("name", DEEP_CATEGORIES)).then(({ data }: any) => {
       if (!data) return;
       const nested: Record<string, Record<string, string[]>> = {};
       for (const cat of data as any[]) {

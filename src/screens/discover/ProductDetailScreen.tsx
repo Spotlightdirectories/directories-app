@@ -57,7 +57,7 @@ function SmallBadge({ status }: { status: string }) {
 }
 
 async function getViewingCustomerId(): Promise<string | null> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { session: __s } } = await supabase.auth.getSession(); const user = __s?.user ?? null;
   if (!user) return null;
   const { data } = await supabase.from("customers").select("id").eq("auth_user_id", user.id).maybeSingle();
   return data?.id || null;
