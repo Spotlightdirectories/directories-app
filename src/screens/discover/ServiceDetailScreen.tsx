@@ -35,6 +35,7 @@ import QuoteRequestModal, { QuoteCustomer } from "../../components/QuoteRequestM
 import { colors } from "../../theme/colors";
 
 import { insertAnalytics } from "../../lib/analytics";
+import ThumbImage from "../../components/ThumbImage";
 type Route = RouteProp<RootStackParamList, "ServiceDetail">;
 type Nav = NativeStackNavigationProp<RootStackParamList, "ServiceDetail">;
 
@@ -370,7 +371,7 @@ export default function ServiceDetailScreen() {
             showsHorizontalScrollIndicator={false}
             renderItem={({ item }) => (
               <TouchableOpacity style={styles.relatedCard} onPress={() => navigation.push("ServiceDetail", { vendorSlug, serviceSlug: item.slug })}>
-                {item.representative_image_url && <Image source={{ uri: item.representative_image_url }} style={styles.relatedImage} />}
+                {item.representative_image_url && <ThumbImage uri={item.representative_image_url} style={styles.relatedImage} />}
                 <Text style={styles.relatedName} numberOfLines={2}>{item.service_name}</Text>
                 {item.starting_price != null && <Text style={styles.relatedPriceLabel}>From <Text style={styles.relatedPrice}>₦{Number(item.starting_price).toLocaleString()}</Text></Text>}
               </TouchableOpacity>
@@ -389,7 +390,7 @@ export default function ServiceDetailScreen() {
             showsHorizontalScrollIndicator={false}
             renderItem={({ item }) => (
               <TouchableOpacity style={styles.relatedCard} onPress={() => navigation.push("VendorProfile", { slug: item.vendorSlug || vendorSlug })}>
-                {item.representative_image_url && <Image source={{ uri: item.representative_image_url }} style={styles.relatedImage} />}
+                {item.representative_image_url && <ThumbImage uri={item.representative_image_url} style={styles.relatedImage} />}
                 <Text style={styles.relatedName} numberOfLines={2}>{item.service_name}</Text>
                 {item.starting_price != null && <Text style={styles.relatedPriceLabel}>From <Text style={styles.relatedPrice}>₦{Number(item.starting_price).toLocaleString()}</Text></Text>}
                 <Text style={styles.relatedVendor} numberOfLines={1}>By {item.vendorName}</Text>

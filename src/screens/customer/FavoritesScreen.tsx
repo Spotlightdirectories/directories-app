@@ -20,6 +20,7 @@ import AccountMenu from "../../components/AccountMenu";
 import VerifiedBadge from "../../components/VerifiedBadge";
 import FounderBadge from "../../components/FounderBadge";
 import { colors } from "../../theme/colors";
+import ThumbImage from "../../components/ThumbImage";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "Favorites">;
 
@@ -138,8 +139,8 @@ export default function FavoritesScreen() {
               style={styles.card}
               onPress={() => navigation.navigate("VendorProfile", { slug: item.slug })}
             >
-              <Image
-                source={{ uri: item.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png" }}
+              <ThumbImage
+                uri={item.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png"}
                 style={styles.logo}
               />
               <View style={{ flex: 1, marginLeft: 12 }}>

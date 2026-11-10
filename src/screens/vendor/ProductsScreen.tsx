@@ -64,6 +64,19 @@ function composeProductName(brand: string, variant: string, leafName: string): s
 
 type ImageSlot = "primary" | "secondary" | "tertiary" | number; // number = gallery index
 
+
+// Storage path inside the "vendor-gallery" bucket for a photo's public URL
+// (same helper as ServicesScreen), used to clean up photos on delete.
+function storagePathFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const path = new URL(url).pathname.split("/object/public/vendor-gallery/")[1];
+    return path ? decodeURIComponent(path) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ProductsScreen() {
   const navigation = useNavigation();
   const [vendor, setVendor] = useState<{ id: string; name: string; plan_tier: string; trial_started_at: string | null } | null>(null);
@@ -292,8 +305,22 @@ export default function ProductsScreen() {
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete", style: "destructive", onPress: async () => {
+          const product = savedProducts.find((p) => p.id === id);
           const { error } = await supabase.from("vendor_products").delete().eq("id", id);
           if (error) { Alert.alert("Error", "Unable to delete product."); return; }
+          // Remove the product's photos (and their small card copies) from
+          // storage, same as the website and ServicesScreen. Before
+          // 2026-11-10 deleting a product in the app left its photos behind.
+          const storagePaths = [
+            product?.primary_image_url,
+            product?.secondary_image_url,
+            product?.tertiary_image_url,
+            ...(product?.gallery_image_urls || []),
+          ].map(storagePathFromUrl).filter((p): p is string => Boolean(p));
+          if (storagePaths.length) {
+            const { error: storageError } = await supabase.storage.from("vendor-gallery").remove([...storagePaths, ...storagePaths.map((p) => `thumbs/${p}`)]);
+            if (storageError) console.error(storageError);
+          }
           setSavedProducts((prev) => prev.filter((p) => p.id !== id));
           if (editingId === id) resetForm();
         },

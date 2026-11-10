@@ -37,6 +37,7 @@ import FounderBadge from "../../components/FounderBadge";
 import { colors } from "../../theme/colors";
 
 import { insertAnalytics } from "../../lib/analytics";
+import ThumbImage from "../../components/ThumbImage";
 type Route = RouteProp<RootStackParamList, "VendorProfile">;
 
 const BRANCH_LIMITS: Record<string, number> = {
@@ -577,7 +578,8 @@ export default function VendorProfileScreen() {
   const removeFromBucket = async (url: string, bucket: string) => {
     const path = url.split(`/${bucket}/`)[1];
     if (path) {
-      const { error } = await supabase.storage.from(bucket).remove([path]);
+      // Also removes the photo's small card copy (2026-11-10).
+      const { error } = await supabase.storage.from(bucket).remove([path, `thumbs/${path}`]);
       if (error) console.error(`${bucket} delete error:`, error);
     }
   };
@@ -869,8 +871,8 @@ export default function VendorProfileScreen() {
             in one horizontal card, the way the website shows it. */}
         <View style={styles.bannerCard}>
           <View style={styles.bannerLogoWrap}>
-            <Image
-              source={{ uri: vendor.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png" }}
+            <ThumbImage
+              uri={vendor.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png"}
               style={styles.bannerLogo}
             />
             {isOwner && (
@@ -1159,7 +1161,7 @@ export default function VendorProfileScreen() {
                       style={styles.productCard}
                       onPress={() => navigation.navigate("ProductDetail", { vendorSlug: vendor.slug, productSlug: p.slug })}
                     >
-                      <Image source={{ uri: p.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.productImage} />
+                      <ThumbImage uri={p.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png"} style={styles.productImage} />
                       {p.display_subcategory ? <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 4 }} numberOfLines={1}>{p.display_subcategory}</Text> : null}
                       <Text style={styles.productName} numberOfLines={2}>{p.product_name}</Text>
                       <Text style={styles.productPrice}>₦{Number(p.price || 0).toLocaleString()}</Text>
@@ -1179,7 +1181,7 @@ export default function VendorProfileScreen() {
                     onPress={() => navigation.navigate("ServiceDetail", { vendorSlug: vendor.slug, serviceSlug: s.slug })}
                   >
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                      <Image source={{ uri: s.representative_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.serviceImage} />
+                      <ThumbImage uri={s.representative_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png"} style={styles.serviceImage} />
                       <Text style={[styles.serviceName, { flex: 1 }]}>{s.service_name}</Text>
                     </View>
                     {s.short_description && <Text style={styles.serviceDescription} numberOfLines={2}>{s.short_description}</Text>}
@@ -1248,7 +1250,7 @@ export default function VendorProfileScreen() {
                   style={styles.similarCard}
                   onPress={() => navigation.navigate("VendorProfile", { slug: b.slug })}
                 >
-                  <Image source={{ uri: b.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png" }} style={styles.similarLogo} />
+                  <ThumbImage uri={b.logo_url || "https://spotlightdirectories.com/images/default-vendor-logo.png"} style={styles.similarLogo} />
                   <View style={styles.similarNameRow}>
                     <Text style={styles.similarName} numberOfLines={1}>{b.name}</Text>
                     <FounderBadge slug={b.slug} size={12} />

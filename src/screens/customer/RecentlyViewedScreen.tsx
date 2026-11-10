@@ -19,6 +19,7 @@ import { supabase } from "../../lib/supabase";
 import { usePullRefresh } from "../../lib/usePullRefresh";
 import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
+import ThumbImage from "../../components/ThumbImage";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "RecentlyViewed">;
 
@@ -123,7 +124,7 @@ export default function RecentlyViewedScreen() {
                 ? navigation.navigate("ProductDetail", { vendorSlug: item.vendorSlug, productSlug: item.slug })
                 : navigation.navigate("ServiceDetail", { vendorSlug: item.vendorSlug, serviceSlug: item.slug })}
             >
-              <Image source={{ uri: item.image || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.image} />
+              <ThumbImage uri={item.image || "https://spotlightdirectories.com/images/spotlightlogo-512.png"} style={styles.image} />
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
                 <Text style={styles.vendorName}>By {item.vendorName}</Text>

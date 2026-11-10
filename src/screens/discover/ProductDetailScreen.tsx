@@ -31,6 +31,7 @@ import SpotlightMark from "../../components/SpotlightMark";
 import { colors } from "../../theme/colors";
 
 import { insertAnalytics } from "../../lib/analytics";
+import ThumbImage from "../../components/ThumbImage";
 type Route = RouteProp<RootStackParamList, "ProductDetail">;
 type Nav = NativeStackNavigationProp<RootStackParamList, "ProductDetail">;
 
@@ -289,7 +290,7 @@ export default function ProductDetailScreen() {
                 style={styles.relatedCard}
                 onPress={() => navigation.push("ProductDetail", { vendorSlug, productSlug: item.slug })}
               >
-                <Image source={{ uri: item.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.relatedImage} />
+                <ThumbImage uri={item.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png"} style={styles.relatedImage} />
                 <Text style={styles.relatedName} numberOfLines={2}>{item.product_name}</Text>
                 <Text style={styles.relatedPrice}>₦{Number(item.price || 0).toLocaleString()}</Text>
               </TouchableOpacity>
@@ -312,7 +313,7 @@ export default function ProductDetailScreen() {
                 style={styles.relatedCard}
                 onPress={() => navigation.push("VendorProfile", { slug: item.vendorSlug || vendorSlug })}
               >
-                <Image source={{ uri: item.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png" }} style={styles.relatedImage} />
+                <ThumbImage uri={item.primary_image_url || "https://spotlightdirectories.com/images/spotlightlogo-512.png"} style={styles.relatedImage} />
                 <Text style={styles.relatedName} numberOfLines={2}>{item.product_name}</Text>
                 <Text style={styles.relatedPrice}>₦{Number(item.price || 0).toLocaleString()}</Text>
                 <Text style={styles.relatedVendor} numberOfLines={1}>By {item.vendorName}</Text>

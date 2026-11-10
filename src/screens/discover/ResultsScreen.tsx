@@ -30,6 +30,7 @@ import AccountMenu from "../../components/AccountMenu";
 import { colors } from "../../theme/colors";
 
 import { insertAnalytics } from "../../lib/analytics";
+import ThumbImage from "../../components/ThumbImage";
 type Route = RouteProp<RootStackParamList, "Results">;
 type Nav = NativeStackNavigationProp<RootStackParamList, "Results">;
 
@@ -351,7 +352,7 @@ export default function ResultsScreen() {
     return (
       <TouchableOpacity key={item.key} style={styles.card} onPress={handlePress}>
         <View style={styles.cardRow}>
-          <Image source={{ uri: thumb }} style={item.kind === "vendor" ? styles.thumbLogo : styles.thumb} resizeMode="cover" />
+          <ThumbImage uri={thumb} style={item.kind === "vendor" ? styles.thumbLogo : styles.thumb} resizeMode="cover" />
           <View style={{ flex: 1 }}>
             {item.sponsored && <Text style={styles.sponsoredTag}>SPONSORED</Text>}
             {item.kind === "vendor" ? (
