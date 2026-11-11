@@ -226,6 +226,8 @@ export default function DashboardHomeScreen() {
   const hasMedia = mediaCount > 0;
   const hasSocial = socialCount > 0;
 
+  // Free plan has no links (2026-11), so the social-link step only applies to paid plans.
+  const socialApplies = vendor.plan_tier !== "free";
   const checklistItems = [
     { label: "Business name & email", ok: hasBasic },
     { label: "Address & description", ok: hasDetails },
@@ -234,7 +236,7 @@ export default function DashboardHomeScreen() {
     { label: "Business location (map)", ok: hasLocation },
     { label: "Email verified", ok: emailVerified },
     { label: "Add at least 1 media", ok: hasMedia },
-    { label: "Add at least 1 social link", ok: hasSocial },
+    ...(socialApplies ? [{ label: "Add at least 1 social link", ok: hasSocial }] : []),
   ];
   const score = checklistItems.filter((i) => i.ok).length;
   const percent = Math.round((score / checklistItems.length) * 100);

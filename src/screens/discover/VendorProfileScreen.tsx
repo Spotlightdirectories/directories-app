@@ -317,7 +317,7 @@ export default function VendorProfileScreen() {
     // fetched together (one wait) instead of one after another.
     await Promise.all([
       (async () => {
-      const { data: links } = await supabase.from("vendor_social_links").select("*").eq("vendor_id", v.id);
+      const { data: links } = await supabase.rpc("get_vendor_social_links", { p_vendor_id: v.id });
       setSocialLinks(links || []);
       })(),
       (async () => {
@@ -573,7 +573,7 @@ export default function VendorProfileScreen() {
   // "vendor-videos" bucket with plan-based duration/size limits; social
   // link and description limits depend on the plan.
   const ownerVideoLimits = VIDEO_LIMITS[vendor.plan_tier] || VIDEO_LIMITS.free;
-  const effectiveSocialLimit = vendor.plan_tier === "free" ? (trialActive ? 1 : 0) : (SOCIAL_LIMITS[vendor.plan_tier] ?? 0);
+  const effectiveSocialLimit = vendor.plan_tier === "free" ? 0 : (SOCIAL_LIMITS[vendor.plan_tier] ?? 0);
 
   const removeFromBucket = async (url: string, bucket: string) => {
     const path = url.split(`/${bucket}/`)[1];
@@ -666,7 +666,7 @@ export default function VendorProfileScreen() {
 
   const reloadSocial = async () => {
     if (!vendor) return;
-    const { data } = await supabase.from("vendor_social_links").select("*").eq("vendor_id", vendor.id);
+    const { data } = await supabase.rpc("get_vendor_social_links", { p_vendor_id: vendor.id });
     setSocialLinks(data || []);
   };
 
@@ -896,11 +896,18 @@ export default function VendorProfileScreen() {
             <Text style={styles.bannerAddress} numberOfLines={2}>{vendor.address}</Text>
             {(socialLinks.length > 0 || isOwner) && (
               <View style={styles.bannerSocialRow}>
-                {socialLinks.map((link) => (
-                  <TouchableOpacity key={link.id} style={styles.bannerSocialIcon} onPress={() => { logEvent("external_visit"); Linking.openURL(link.url); }}>
-                    <FontAwesome6 name={SOCIAL_ICON_MAP[link.platform] || "link"} size={12} color={colors.white} />
-                  </TouchableOpacity>
-                ))}
+                {socialLinks.map((link) =>
+                  // 2026-11: the free plan has no links; existing ones are shown but not clickable.
+                  vendor.plan_tier === "free" ? (
+                    <View key={link.id} style={[styles.bannerSocialIcon, { opacity: 0.6 }]}>
+                      <FontAwesome6 name={SOCIAL_ICON_MAP[link.platform] || "link"} size={12} color={colors.white} />
+                    </View>
+                  ) : (
+                    <TouchableOpacity key={link.id} style={styles.bannerSocialIcon} onPress={() => { logEvent("external_visit"); Linking.openURL(link.url); }}>
+                      <FontAwesome6 name={SOCIAL_ICON_MAP[link.platform] || "link"} size={12} color={colors.white} />
+                    </TouchableOpacity>
+                  )
+                )}
                 {isOwner && (
                   <TouchableOpacity style={styles.socialEdit} onPress={() => setSocialOpen(true)}>
                     <FontAwesome6 name={socialLinks.length ? "pen" : "plus"} size={10} color={colors.primary} />
