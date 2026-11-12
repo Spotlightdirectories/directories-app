@@ -90,7 +90,7 @@ export default function ProfileEditScreen() {
 
   function applyVendor(v: Vendor) {
     setVendor(v);
-    setWhatsapp(v.whatsapp || "");
+    setWhatsapp((v.whatsapp || "").replace(/\D/g, "").replace(/^234/, "").replace(/^0/, "").slice(0, 10));
     setTelephone(v.telephone || "");
     setAddress(v.address || "");
     setState(v.state || "");
@@ -159,6 +159,18 @@ export default function ProfileEditScreen() {
       if (!value) { Alert.alert("Missing information", `${label} is required.`); return; }
     }
 
+    if (!/^[1-9][0-9]{9}$/.test(whatsapp.trim())) {
+      Alert.alert("Check WhatsApp number", "WhatsApp number must be 10 digits after +234 (for example 8021234567).");
+      return;
+    }
+
+    const telDigits = telephone.replace(/\D/g, "").replace(/^234/, "").replace(/^0/, "");
+    const telSame = telephone.replace(/\D/g, "") === (vendor.telephone || "").replace(/\D/g, "");
+    if (!telSame && !(/^[789][0-9]{9}$/.test(telDigits) || /^[1-6][0-9]{6,8}$/.test(telDigits))) {
+      Alert.alert("Check telephone number", "Telephone must be a valid Nigerian mobile or landline number.");
+      return;
+    }
+
     const plan = vendor.plan_tier || "free";
     const limit = DESCRIPTION_WORD_LIMITS[plan] ?? 100;
     const originalPlain = htmlToPlain(vendor.description);
@@ -183,7 +195,7 @@ export default function ProfileEditScreen() {
     const nextDescription = descChanged ? plainToHtml(description) : (vendor.description || "");
 
     const hasChanges =
-      whatsapp.trim() !== (vendor.whatsapp || "") || telephone.trim() !== (vendor.telephone || "") ||
+      ("234" + whatsapp.trim()) !== (vendor.whatsapp || "").replace(/\D/g, "") || telephone.trim() !== (vendor.telephone || "") ||
       address.trim() !== (vendor.address || "") || nextDescription !== (vendor.description || "") ||
       state !== (vendor.state || "") || lga !== (vendor.lga || "") ||
       nextLat !== vendor.latitude || nextLng !== vendor.longitude ||
@@ -192,7 +204,7 @@ export default function ProfileEditScreen() {
     if (!hasChanges) { Alert.alert("Nothing to save", "No new changes to save."); return; }
 
     const payload = {
-      whatsapp: whatsapp.trim(), telephone: telephone.trim(), address: address.trim(),
+      whatsapp: "+234" + whatsapp.trim(), telephone: telSame ? (vendor.telephone || "") : "+234" + telDigits, address: address.trim(),
       description: nextDescription, latitude: nextLat, longitude: nextLng, state, lga,
       open_time: openTime || null, close_time: closeTime || null, business_days: nextDays,
     };
